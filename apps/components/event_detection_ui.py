@@ -981,11 +981,12 @@ def render(company: str, cfg) -> None:
   parquet_dir = ROOT / "companies" / company / "parquet"
   events_master_default_dir = _P(cfg.data_dir).parent / "events" / "master_files"
   available_files = [p.name for p in sorted(parquet_dir.glob("*.parquet"))]
+  import pyarrow.parquet as pq
   columns_cache: Dict[str, List[str]] = {}
   for fname in available_files:
     try:
-      df_cols = pd.read_parquet(parquet_dir / fname, engine="pyarrow").columns.tolist()
-      columns_cache[fname] = [str(c) for c in df_cols]
+      schema = pq.read_schema(parquet_dir / fname)
+      columns_cache[fname] = schema.names
     except Exception:
       columns_cache[fname] = []
 
