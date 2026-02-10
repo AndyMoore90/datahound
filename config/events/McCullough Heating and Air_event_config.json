@@ -1,0 +1,242 @@
+{
+  "overdue_maintenance": {
+    "enabled": true,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": true,
+      "include_demographics": true,
+      "include_marketable": true,
+      "include_segmentation": true,
+      "include_permit_data": true
+    },
+    "custom_parameters": {},
+    "months_threshold_min": 12,
+    "only_locations": true,
+    "include_last_service_details": true,
+    "data_columns_to_include": []
+  },
+  "aging_systems": {
+    "enabled": true,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": true,
+      "include_demographics": true,
+      "include_marketable": true,
+      "include_segmentation": true,
+      "include_permit_data": true
+    },
+    "custom_parameters": {},
+    "min_age_years": 1,
+    "llm_analysis_enabled": true,
+    "max_jobs_to_analyze": 50,
+    "prioritize_recent_jobs": true,
+    "concurrent_llm_calls": 50,
+    "enable_permit_based_age": true,
+    "permit_llm_analysis": true,
+    "update_locations_table": false,
+    "overwrite_existing_ages": false,
+    "prefer_permit_age_over_job_age": true,
+    "min_permit_age_confidence": 0.7,
+    "run_full_pipeline": true,
+    "build_job_histories": true,
+    "execute_job_llm_analysis": true,
+    "execute_permit_matching": true,
+    "execute_permit_llm_analysis": true,
+    "calculate_final_ages": true,
+    "save_location_jobs_data": true,
+    "save_llm_results": true,
+    "save_permit_results": true,
+    "include_age_discrepancies": true,
+    "include_replacement_recommendations": true,
+    "target_replacement_age": 10,
+    "enable_system_age_audit_events": true,
+    "system_age_audit_min_age": 10,
+    "include_ep_system_age": true,
+    "include_years_since_replacement": true,
+    "include_current_system_age": true
+  },
+  "canceled_jobs": {
+    "enabled": true,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": true,
+      "include_demographics": true,
+      "include_marketable": true,
+      "include_segmentation": true,
+      "include_permit_data": true
+    },
+    "custom_parameters": {},
+    "hours_back": 168,
+    "include_cancellation_reason": true,
+    "exclude_customer_requested": false,
+    "min_job_value": null,
+    "data_columns_to_include": [
+      "Job ID",
+      "Customer ID",
+      "Location ID",
+      "Job Status",
+      "Cancellation Reason",
+      "Job Value",
+      "Created Date",
+      "Customer Name",
+      "Phone",
+      "Service Address"
+    ]
+  },
+  "unsold_estimates": {
+    "enabled": true,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": true,
+      "include_demographics": true,
+      "include_marketable": true,
+      "include_segmentation": true,
+      "include_permit_data": true
+    },
+    "custom_parameters": {},
+    "days_back": 365,
+    "min_estimate_value": null,
+    "exclude_statuses": [],
+    "include_follow_up_dates": true,
+    "data_columns_to_include": [
+      "Estimate ID",
+      "Customer ID",
+      "Location ID",
+      "Estimate Value",
+      "Status",
+      "Created Date",
+      "Follow Up Date",
+      "Customer Name",
+      "Phone",
+      "Service Address"
+    ]
+  },
+  "permit_matches": {
+    "enabled": false,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": false,
+      "include_demographics": false,
+      "include_marketable": false,
+      "include_segmentation": false,
+      "include_permit_data": false
+    },
+    "custom_parameters": {},
+    "match_radius_miles": 0.1,
+    "min_match_score": 0.8,
+    "include_permit_details": true,
+    "match_types": [
+      "address",
+      "name"
+    ]
+  },
+  "lost_customers": {
+    "enabled": true,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": true,
+      "include_demographics": true,
+      "include_marketable": true,
+      "include_segmentation": true,
+      "include_permit_data": true
+    },
+    "custom_parameters": {},
+    "months_threshold": 1,
+    "min_historical_jobs": 1,
+    "include_competitor_analysis": true,
+    "exclude_do_not_service": true,
+    "data_columns_to_include": [
+      "Customer ID",
+      "Customer Name",
+      "Phone",
+      "Email",
+      "Service Address",
+      "Last Service Date",
+      "Historical Job Count",
+      "Months Since Last Service"
+    ]
+  },
+  "market_share": {
+    "enabled": false,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": false,
+      "include_demographics": false,
+      "include_marketable": false,
+      "include_segmentation": false,
+      "include_permit_data": false
+    },
+    "custom_parameters": {},
+    "analysis_radius_miles": 5.0,
+    "min_permits_for_analysis": 10,
+    "include_competitor_breakdown": true,
+    "time_period_months": 12
+  },
+  "system_age_audit": {
+    "enabled": false,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": false,
+      "include_demographics": false,
+      "include_marketable": false,
+      "include_segmentation": false,
+      "include_permit_data": false
+    },
+    "custom_parameters": {},
+    "target_age_years": 15,
+    "include_replacement_recommendations": true,
+    "priority_system_types": [
+      "HVAC",
+      "Water Heater"
+    ]
+  },
+  "permit_replacements": {
+    "enabled": false,
+    "severity_threshold": "medium",
+    "processing_limit": null,
+    "selected_columns": [],
+    "detection_mode": "master_data",
+    "enrichment": {
+      "include_rfm": false,
+      "include_demographics": false,
+      "include_marketable": false,
+      "include_segmentation": false,
+      "include_permit_data": false
+    },
+    "custom_parameters": {},
+    "llm_analysis_enabled": true,
+    "confidence_threshold": 0.7,
+    "include_system_details": true,
+    "max_permits_to_analyze": 50
+  },
+  "global_settings": {
+    "global_processing_limit": null,
+    "show_progress": true,
+    "chunk_size": 1000,
+    "backup_before_scan": true
+  }
+}

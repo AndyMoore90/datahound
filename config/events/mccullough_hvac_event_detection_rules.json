@@ -1,0 +1,167 @@
+[
+  {
+    "rule_id": "job_canceled_001",
+    "name": "Job Status Changed to Canceled",
+    "description": "Detects when a job status changes to 'canceled' or 'cancelled'",
+    "event_type": "job_canceled",
+    "trigger_type": "status_change",
+    "source_table": "jobs",
+    "conditions": {
+      "column": "Status",
+      "old_values": [
+        "scheduled",
+        "in progress",
+        "pending"
+      ],
+      "new_values": [
+        "canceled",
+        "cancelled"
+      ],
+      "case_sensitive": false
+    },
+    "enabled": true,
+    "priority": 1
+  },
+  {
+    "rule_id": "job_completed_001",
+    "name": "Job Status Changed to Completed",
+    "description": "Detects when a job status changes to 'completed'",
+    "event_type": "job_completed",
+    "trigger_type": "status_change",
+    "source_table": "jobs",
+    "conditions": {
+      "column": "Status",
+      "old_values": [
+        "scheduled",
+        "in progress",
+        "pending",
+        "canceled"
+      ],
+      "new_values": [
+        "completed",
+        "finished",
+        "complete"
+      ],
+      "case_sensitive": false
+    },
+    "enabled": true,
+    "priority": 1
+  },
+  {
+    "rule_id": "job_rescheduled_001",
+    "name": "Job Rescheduled After Cancellation",
+    "description": "Detects when a canceled job is rescheduled",
+    "event_type": "job_rescheduled",
+    "trigger_type": "status_change",
+    "source_table": "jobs",
+    "conditions": {
+      "column": "Status",
+      "old_values": [
+        "canceled",
+        "cancelled"
+      ],
+      "new_values": [
+        "scheduled",
+        "in progress"
+      ],
+      "case_sensitive": false
+    },
+    "enabled": true,
+    "priority": 1
+  },
+  {
+    "rule_id": "estimate_dismissed_001",
+    "name": "Estimate Status Changed to Dismissed",
+    "description": "Detects when an estimate is dismissed or declined",
+    "event_type": "estimate_dismissed",
+    "trigger_type": "status_change",
+    "source_table": "estimates",
+    "conditions": {
+      "column": "Estimate Status",
+      "old_values": [
+        "pending",
+        "open",
+        "sent"
+      ],
+      "new_values": [
+        "dismissed",
+        "declined",
+        "rejected"
+      ],
+      "case_sensitive": false,
+      "minimum_days_open": 7
+    },
+    "enabled": true,
+    "priority": 2
+  },
+  {
+    "rule_id": "estimate_sold_001",
+    "name": "Estimate Status Changed to Sold",
+    "description": "Detects when an estimate is sold or accepted",
+    "event_type": "estimate_sold",
+    "trigger_type": "status_change",
+    "source_table": "estimates",
+    "conditions": {
+      "column": "Estimate Status",
+      "old_values": [
+        "pending",
+        "open",
+        "sent",
+        "dismissed"
+      ],
+      "new_values": [
+        "sold",
+        "accepted",
+        "approved"
+      ],
+      "case_sensitive": false
+    },
+    "enabled": true,
+    "priority": 1
+  },
+  {
+    "rule_id": "overdue_maintenance_001",
+    "name": "Customer Overdue for Maintenance",
+    "description": "Detects customers who haven't had maintenance in 12+ months",
+    "event_type": "overdue_maintenance",
+    "trigger_type": "time_based",
+    "source_table": "jobs",
+    "conditions": {
+      "job_types": [
+        "maintenance",
+        "service",
+        "repair",
+        "tune",
+        "clean"
+      ],
+      "date_column": "Completion Date",
+      "fallback_date_column": "Created Date",
+      "months_threshold": 12,
+      "severity_thresholds": {
+        "medium": 15,
+        "high": 24,
+        "critical": 36
+      }
+    },
+    "enabled": true,
+    "priority": 2
+  },
+  {
+    "rule_id": "customer_contact_001",
+    "name": "Customer Contact Logged",
+    "description": "Detects when customer contact is logged",
+    "event_type": "customer_contact",
+    "trigger_type": "value_change",
+    "source_table": "calls",
+    "conditions": {
+      "columns": [
+        "Call Type",
+        "Type",
+        "Reason"
+      ],
+      "track_all_changes": true
+    },
+    "enabled": true,
+    "priority": 3
+  }
+]

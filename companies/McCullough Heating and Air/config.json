@@ -1,0 +1,154 @@
+{
+  "company": "McCullough Heating and Air",
+  "data_dir": "data\\McCullough Heating and Air\\downloads",
+  "gmail": {
+    "scopes": [
+      "https://www.googleapis.com/auth/gmail.modify"
+    ],
+    "credentials_path": "secrets\\McCullough Heating and Air\\google\\credentials.json",
+    "token_path": "secrets\\McCullough Heating and Air\\google\\gmail_token.json",
+    "query_by_type": {
+      "Estimate_Events": "subject:\"Estimate_Events\" is:unread",
+      "Location_Events": "subject:\"Location_Events\" is:unread",
+      "Membership_Events": "subject:\"Membership_Events\" is:unread",
+      "Call_Events": "subject:\"Call_Events\" is:unread",
+      "Job_Events": "subject:\"Job_Events\" is:unread",
+      "Invoice_Events": "subject:\"Invoice_Events\" is:unread",
+      "Customer_Events": "subject:\"Customer_Events\" is:unread"
+    },
+    "link_prefixes": [
+      "https://go.servicetitan.com/PublicResource/File/"
+    ]
+  },
+  "allowed_extensions": [
+    ".xlsx",
+    ".xls",
+    ".csv"
+  ],
+  "mark_as_read": true,
+  "permit": {
+    "austin_base_url": "https://data.austintexas.gov/resource/3syk-w9eu.csv",
+    "default_lookback_hours": 168
+  },
+  "schedules": [],
+  "prepare": {
+    "tables_dir": "companies\\McCullough Heating and Air\\tables",
+    "file_type_to_master": {
+      "jobs": "Jobs.xlsx",
+      "customers": "Customers.xlsx",
+      "memberships": "Memberships.xlsx",
+      "calls": "Calls.xlsx",
+      "estimates": "Estimates.xlsx",
+      "invoices": "Invoices.xlsx",
+      "locations": "Locations.xlsx"
+    },
+    "type_rules": {
+      "jobs": {
+        "drop_last_row": true,
+        "column_renames": {},
+        "date_columns": [
+          "Hold Date",
+          "Scheduled Date",
+          "Scheduled Date Year Month",
+          "Invoice Date",
+          "Next Appt Start Date",
+          "Upcoming Appt Start Date",
+          "First Appt Date",
+          "Completion Date",
+          "Created Date",
+          "Last Appt Date",
+          "Most Recent Appt Date",
+          "First Dispatch Date",
+          "Last R.S. Date",
+          "Next R.S. Date",
+          "Last Billing Invoice Date",
+          "Last Billing Payment Date",
+          "Membership Termination Date",
+          "Next Membership Billing Date",
+          "Next Billing Date",
+          "Cancellation Date",
+          "Current Status Change Date",
+          "Call Date",
+          "Sales Opp. Date",
+          "Follow Up Date",
+          "Creation Date",
+          "Last Follow Up Date",
+          "Last Paid Date",
+          "most_recent_issue_date",
+          "Job Date W System Age Was Set"
+        ],
+        "date_formats": [
+          "%m/%d/%Y",
+          "%m/%d/%Y %H:%M",
+          "%m/%d/%Y %I:%M %p",
+          "%Y-%m-%d",
+          "%Y-%m"
+        ],
+        "date_placeholders": [
+          "N/A",
+          "-",
+          "NULL",
+          "NaT",
+          "nan",
+          "None"
+        ],
+        "excel_serial": true
+      }
+    }
+  },
+  "upsert": {
+    "id_column_by_type": {
+      "jobs": "Job ID",
+      "customers": "Customer ID",
+      "memberships": "Membership ID",
+      "calls": "Call ID",
+      "estimates": "Estimate ID",
+      "invoices": "Invoice ID",
+      "locations": "Location ID"
+    },
+    "event_rules": {
+      "scan_rules": {
+        "Aging Systems Detection": {
+          "name": "Aging Systems Detection",
+          "description": "Detects locations with aging HVAC systems based on LLM analysis of job histories",
+          "event_type": "aging_systems",
+          "rule_type": "llm_analysis",
+          "target_tables": [
+            "jobs",
+            "locations"
+          ],
+          "detection_logic": {
+            "min_age_years": 1,
+            "llm_analysis": {
+              "model": "deepseek-chat",
+              "base_url": "https://api.deepseek.com",
+              "max_tokens": 8192,
+              "temperature": 0.0,
+              "max_retries": 2
+            },
+            "job_history": {
+              "max_jobs_to_analyze": 10,
+              "prioritize_recent": true
+            }
+          },
+          "output_fields": [
+            "entity_type",
+            "entity_id",
+            "system_age",
+            "description",
+            "job_date",
+            "text_snippet",
+            "reasoning",
+            "name",
+            "phone",
+            "city",
+            "state"
+          ],
+          "severity": "medium",
+          "enabled": true,
+          "threshold_months": null
+        }
+      }
+    }
+  }
+}

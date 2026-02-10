@@ -1,0 +1,74 @@
+[
+  {
+    "name": "Recent Cancellations",
+    "description": "Canceled jobs within the last 14 days with customer data",
+    "enabled": true,
+    "source_event_type": "canceled_jobs",
+    "source_file_name": "canceled_jobs_master.parquet",
+    "output_file_name": "recent_cancellations.parquet",
+    "max_records": null,
+    "time_filter": {
+      "filter_type": "days_back",
+      "field_name": "completion_date",
+      "days_back": 14,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": false,
+      "include_demographics": false,
+      "include_segmentation": false,
+      "customer_id_field": "Customer ID"
+    }
+  },
+  {
+    "name": "Recent Lost Customers",
+    "description": "Lost customers identified within the last 30 days",
+    "enabled": true,
+    "source_event_type": "lost_customers",
+    "source_file_name": "lost_customers_master.parquet",
+    "output_file_name": "recent_lost_customers.parquet",
+    "max_records": null,
+    "time_filter": {
+      "filter_type": "days_back",
+      "field_name": "detected_at",
+      "days_back": 30,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": true,
+      "include_demographics": false,
+      "include_segmentation": true,
+      "customer_id_field": "entity_id"
+    }
+  },
+  {
+    "name": "Recent Aging Systems",
+    "description": "Aging systems detected within the last 7 days",
+    "enabled": false,
+    "source_event_type": "aging_systems",
+    "source_file_name": "aging_systems_master.parquet",
+    "output_file_name": "recent_aging_systems.parquet",
+    "max_records": 100,
+    "time_filter": {
+      "filter_type": "days_back",
+      "field_name": "detected_at",
+      "days_back": 7,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": false,
+      "include_demographics": true,
+      "include_segmentation": false,
+      "customer_id_field": "entity_id"
+    }
+  }
+]

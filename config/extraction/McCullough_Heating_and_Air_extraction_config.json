@@ -1,0 +1,202 @@
+[
+  {
+    "name": "Recent Cancellations",
+    "description": "Canceled jobs within the last 30 days with customer data",
+    "enabled": true,
+    "source_event_type": "canceled_jobs",
+    "source_file_name": "canceled_jobs_master.parquet",
+    "output_file_name": "recent_cancellations.parquet",
+    "max_records": null,
+    "enable_inbound_call_check": true,
+    "inbound_call_window_days": null,
+    "inbound_call_directions": [
+      "Inbound"
+    ],
+    "enable_sms_activity_check": true,
+    "sms_window_minutes": null,
+    "time_filter": {
+      "enabled": true,
+      "filter_type": "days_back",
+      "field_name": "completion_date",
+      "days_back": 30,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "numeric_filter": {
+      "enabled": false,
+      "field_name": "",
+      "filter_type": "less_than",
+      "value": 0.0,
+      "min_value": null,
+      "max_value": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": true,
+      "include_demographics": true,
+      "include_segmentation": true,
+      "customer_id_field": "Customer ID"
+    }
+  },
+  {
+    "name": "Recent Lost Customers",
+    "description": "Lost customers who have been in contact within 13 months\n",
+    "enabled": true,
+    "source_event_type": "lost_customers",
+    "source_file_name": "lost_customers_master.parquet",
+    "output_file_name": "recent_lost_customers.parquet",
+    "max_records": null,
+    "enable_inbound_call_check": false,
+    "inbound_call_window_days": null,
+    "inbound_call_directions": [
+      "Inbound"
+    ],
+    "enable_sms_activity_check": false,
+    "sms_window_minutes": null,
+    "time_filter": {
+      "enabled": false,
+      "filter_type": "days_back",
+      "field_name": "detected_at",
+      "days_back": 30,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "numeric_filter": {
+      "enabled": true,
+      "field_name": "months_since_last_contact",
+      "filter_type": "less_than",
+      "value": 13.0,
+      "min_value": null,
+      "max_value": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": true,
+      "include_demographics": true,
+      "include_segmentation": true,
+      "customer_id_field": "entity_id"
+    }
+  },
+  {
+    "name": "Recent Aging Systems",
+    "description": "Aging systems detected within the last 7 days",
+    "enabled": false,
+    "source_event_type": "aging_systems",
+    "source_file_name": "aging_systems_master.parquet",
+    "output_file_name": "recent_aging_systems.parquet",
+    "max_records": null,
+    "enable_inbound_call_check": false,
+    "inbound_call_window_days": null,
+    "inbound_call_directions": [
+      "Inbound"
+    ],
+    "enable_sms_activity_check": false,
+    "sms_window_minutes": null,
+    "time_filter": {
+      "enabled": true,
+      "filter_type": "days_back",
+      "field_name": "detected_at",
+      "days_back": 7,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "numeric_filter": {
+      "enabled": false,
+      "field_name": "",
+      "filter_type": "less_than",
+      "value": 0.0,
+      "min_value": null,
+      "max_value": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": false,
+      "include_demographics": false,
+      "include_segmentation": false,
+      "customer_id_field": "entity_id"
+    }
+  },
+  {
+    "name": "Recent Unsold Estimates",
+    "description": "Unsold estimates from the last 90 days with customer data",
+    "enabled": true,
+    "source_event_type": "unsold_estimates",
+    "source_file_name": "unsold_estimates_master.parquet",
+    "output_file_name": "recent_unsold_estimates.parquet",
+    "max_records": null,
+    "enable_inbound_call_check": true,
+    "inbound_call_window_days": null,
+    "inbound_call_directions": [
+      "Inbound"
+    ],
+    "enable_sms_activity_check": true,
+    "sms_window_minutes": null,
+    "time_filter": {
+      "enabled": true,
+      "filter_type": "days_back",
+      "field_name": "creation_date",
+      "days_back": 90,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "numeric_filter": {
+      "enabled": false,
+      "field_name": "",
+      "filter_type": "less_than",
+      "value": 0.0,
+      "min_value": null,
+      "max_value": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": true,
+      "include_demographics": true,
+      "include_segmentation": true,
+      "customer_id_field": "Customer ID"
+    }
+  },
+  {
+    "name": "Recent Overdue Maintenance",
+    "description": "Overdue maintenance opportunities less than 24 months overdue",
+    "enabled": true,
+    "source_event_type": "overdue_maintenance",
+    "source_file_name": "overdue_maintenance_master.parquet",
+    "output_file_name": "recent_overdue_maintenance.parquet",
+    "max_records": null,
+    "enable_inbound_call_check": false,
+    "inbound_call_window_days": null,
+    "inbound_call_directions": [
+      "Inbound"
+    ],
+    "enable_sms_activity_check": false,
+    "sms_window_minutes": null,
+    "time_filter": {
+      "enabled": false,
+      "filter_type": "days_back",
+      "field_name": "creation_date",
+      "days_back": 30,
+      "start_date": null,
+      "end_date": null,
+      "static_date": null
+    },
+    "numeric_filter": {
+      "enabled": true,
+      "field_name": "months_overdue",
+      "filter_type": "less_than",
+      "value": 24.0,
+      "min_value": null,
+      "max_value": null
+    },
+    "enrichment": {
+      "include_customer_core_data": true,
+      "include_rfm_analysis": true,
+      "include_demographics": true,
+      "include_segmentation": true,
+      "customer_id_field": "Customer ID"
+    }
+  }
+]

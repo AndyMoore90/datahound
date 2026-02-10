@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Secrets and credentials (NEVER commit these)
+secrets/
+.env
+*.token.json
+credentials.json
+g_sheet_credentials.json
+
+# Data files (too large for git, company-specific)
+data/
+companies/*/parquet/
+global_data/
+
+# Scripts (legacy development scripts, not part of the app)
+scripts/
+
+# Reports and exports
+reports/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Large binary files
+*.parquet
+*.xlsx
+*.xls
+*.csv
+*.jsonl
+
+# Backups
+*.backup*

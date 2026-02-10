@@ -1,0 +1,153 @@
+[
+  {
+    "rule_id": "cancel_remove_001",
+    "name": "Remove Cancellations After 14 Days",
+    "description": "Automatically remove cancellations that are older than 14 days",
+    "event_type": "cancellations",
+    "removal_condition": "age_based",
+    "parameters": {
+      "max_days": 14,
+      "archive_reason": "aged_out_14_days"
+    },
+    "enabled": true,
+    "order": 1
+  },
+  {
+    "rule_id": "cancel_remove_002",
+    "name": "Remove Cancellations When Job Completed",
+    "description": "Remove cancellations when customer completes any job",
+    "event_type": "cancellations",
+    "removal_condition": "subsequent_activity",
+    "parameters": {
+      "activity_type": "job_completed",
+      "match_customer": true,
+      "match_entity": false,
+      "archive_reason": "job_completed_after_cancellation"
+    },
+    "enabled": true,
+    "order": 2
+  },
+  {
+    "rule_id": "cancel_remove_003",
+    "name": "Remove Cancellations When Job Rescheduled",
+    "description": "Remove cancellations when the same job is rescheduled",
+    "event_type": "cancellations",
+    "removal_condition": "status_resolution",
+    "parameters": {
+      "resolution_event": "job_rescheduled",
+      "match_entity": true,
+      "archive_reason": "job_rescheduled"
+    },
+    "enabled": true,
+    "order": 3
+  },
+  {
+    "rule_id": "maintenance_remove_001",
+    "name": "Remove When Maintenance Completed",
+    "description": "Remove overdue maintenance when customer completes maintenance",
+    "event_type": "overdue_maintenance",
+    "removal_condition": "subsequent_activity",
+    "parameters": {
+      "activity_type": "maintenance_completed",
+      "job_types": [
+        "maintenance",
+        "service",
+        "repair",
+        "tune",
+        "clean"
+      ],
+      "match_customer": true,
+      "archive_reason": "maintenance_completed"
+    },
+    "enabled": true,
+    "order": 1
+  },
+  {
+    "rule_id": "maintenance_remove_002",
+    "name": "Archive Critical Overdue (36+ Months)",
+    "description": "Archive maintenance that's been overdue for more than 36 months",
+    "event_type": "overdue_maintenance",
+    "removal_condition": "age_based",
+    "parameters": {
+      "condition_type": "months_overdue",
+      "threshold": 36,
+      "archive_reason": "critical_overdue_archive",
+      "preserve_in_critical_list": true
+    },
+    "enabled": true,
+    "order": 2
+  },
+  {
+    "rule_id": "estimate_remove_001",
+    "name": "Remove When Estimate Sold",
+    "description": "Remove unsold estimates when they are sold",
+    "event_type": "unsold_estimates",
+    "removal_condition": "status_resolution",
+    "parameters": {
+      "resolution_event": "estimate_sold",
+      "match_entity": true,
+      "archive_reason": "estimate_sold"
+    },
+    "enabled": true,
+    "order": 1
+  },
+  {
+    "rule_id": "estimate_remove_002",
+    "name": "Remove When Job Completed",
+    "description": "Remove unsold estimates when customer completes any job",
+    "event_type": "unsold_estimates",
+    "removal_condition": "subsequent_activity",
+    "parameters": {
+      "activity_type": "job_completed",
+      "match_customer": true,
+      "match_entity": false,
+      "archive_reason": "subsequent_job_activity"
+    },
+    "enabled": true,
+    "order": 2
+  },
+  {
+    "rule_id": "estimate_remove_003",
+    "name": "Remove Old Unsold Estimates",
+    "description": "Remove unsold estimates older than 60 days",
+    "event_type": "unsold_estimates",
+    "removal_condition": "age_based",
+    "parameters": {
+      "max_days": 60,
+      "archive_reason": "aged_out_60_days"
+    },
+    "enabled": true,
+    "order": 3
+  },
+  {
+    "rule_id": "lost_remove_001",
+    "name": "Remove When Customer Returns",
+    "description": "Remove lost customer status when they make contact or book service",
+    "event_type": "lost_customers",
+    "removal_condition": "subsequent_activity",
+    "parameters": {
+      "activity_types": [
+        "customer_contact",
+        "job_scheduled",
+        "estimate_created"
+      ],
+      "match_customer": true,
+      "archive_reason": "customer_returned"
+    },
+    "enabled": true,
+    "order": 1
+  },
+  {
+    "rule_id": "lost_remove_002",
+    "name": "Archive Old Lost Customers",
+    "description": "Archive lost customers after 90 days",
+    "event_type": "lost_customers",
+    "removal_condition": "age_based",
+    "parameters": {
+      "max_days": 90,
+      "archive_reason": "aged_out_90_days"
+    },
+    "enabled": true,
+    "order": 2
+  }
+]

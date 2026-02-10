@@ -1,0 +1,9 @@
+{
+  "permits_data_dir": "global_data\\permits",
+  "permit": {
+    "austin_base_url": "https://data.austintexas.gov/resource/3syk-w9eu.csv",
+    "default_lookback_hours": 168
+  },
+  "schedules": [],
+  "deepseek_api_key": "sk-0c32e31daedd4535894c8c8efdd3e8df"
+}
