@@ -61,6 +61,33 @@ EVENT_META: Dict[str, Dict[str, Any]] = {
         "entity_id_col": "entity_id",
         "detected_label": "Cancellations",
         "converted_label": "Rebooked",
+        "detail": {
+            "how_detected": (
+                "The system scans **Jobs.parquet** for any job where the `Status` "
+                "column equals **Canceled** (or Cancelled). Each canceled job becomes "
+                "one event record. The `completion_date` field records when the "
+                "cancellation happened, and `Customer ID` links back to the customer."
+            ),
+            "how_converted": (
+                "A cancellation is considered **converted** (rebooked) when the same "
+                "customer — matched by `Customer ID` — books a **different** job within "
+                "12 months after the cancellation date. The canceled job itself is "
+                "excluded so we don't count the original record. A 'booked' job is any "
+                "job with a status of Completed, Scheduled, In Progress, or Booked."
+            ),
+            "data_source": (
+                "- **Event data**: `data/{company}/events/master_files/canceled_jobs_master.parquet`\n"
+                "- **Conversion check**: `companies/{company}/parquet/Jobs.parquet`\n"
+                "- **Key columns in event file**: `completion_date` (cancellation date), "
+                "`Customer ID`, `entity_id` (= Job ID of the canceled job), `Job Class`, `Summary`\n"
+                "- **Key columns in Jobs**: `Created Date`, `Customer ID`, `Job ID`, `Status`"
+            ),
+            "example": (
+                "Customer **103353551** had job **137259212** canceled on **2025-02-12**. "
+                "Within the next 12 months, the system found 2 other booked jobs for the "
+                "same customer in Jobs.parquet — so this cancellation counts as **converted**."
+            ),
+        },
     },
     "unsold_estimates": {
         "title": "Unsold Estimates",
@@ -80,6 +107,35 @@ EVENT_META: Dict[str, Dict[str, Any]] = {
         "entity_id_col": "entity_id",
         "detected_label": "Unsold Estimates",
         "converted_label": "Converted",
+        "detail": {
+            "how_detected": (
+                "The system scans **Estimates.parquet** for estimates with a status of "
+                "**Dismissed** or **Open** — meaning the customer never accepted them. "
+                "Estimates containing 'This is an empty' in the summary are excluded "
+                "(test records). The `creation_date` records when the estimate was created, "
+                "and `Customer ID` links to the customer. Records with `Customer ID = 0` "
+                "are filtered out as invalid."
+            ),
+            "how_converted": (
+                "An unsold estimate is considered **converted** when the same customer — "
+                "matched by `Customer ID` — books any job (status: Completed, Scheduled, "
+                "In Progress, or Booked) within 12 months after the estimate creation date. "
+                "This indicates the customer eventually moved forward with some service, "
+                "even if it wasn't the exact estimate."
+            ),
+            "data_source": (
+                "- **Event data**: `data/{company}/events/master_files/unsold_estimates_master.parquet`\n"
+                "- **Conversion check**: `companies/{company}/parquet/Jobs.parquet`\n"
+                "- **Key columns in event file**: `creation_date` (estimate date), "
+                "`Customer ID`, `entity_id` (= Estimate ID), `estimate_status`, `Estimate Summary`\n"
+                "- **Key columns in Jobs**: `Created Date`, `Customer ID`, `Status`"
+            ),
+            "example": (
+                "Customer **103696502** received an estimate on **2025-12-01** with status "
+                "Dismissed. Within 12 months, 1 booked job was found in Jobs.parquet for "
+                "the same customer — so this unsold estimate counts as **converted**."
+            ),
+        },
     },
     "overdue_maintenance": {
         "title": "Overdue Maintenance",
@@ -90,9 +146,8 @@ EVENT_META: Dict[str, Dict[str, Any]] = {
             "completed. Severity ranges from Medium to Critical (24+ months)."
         ),
         "formula": (
-            "**Conversion Rate** = Customers who booked a job after their "
-            "last maintenance date (within 12 months of detection) / "
-            "Total overdue cases"
+            "**Conversion Rate** = Customers who booked any job after their "
+            "last maintenance date (within 12 months) / Total overdue cases"
         ),
         "master_file": "overdue_maintenance_master.parquet",
         "event_date_col": "completion_date",
@@ -100,6 +155,37 @@ EVENT_META: Dict[str, Dict[str, Any]] = {
         "entity_id_col": "entity_id",
         "detected_label": "Overdue Flagged",
         "converted_label": "Serviced",
+        "detail": {
+            "how_detected": (
+                "The system scans **Jobs.parquet** for maintenance-type jobs "
+                "(identified by `Job Type` or `Job Class` containing 'Maintenance'). "
+                "For each customer/location, it finds the most recent maintenance "
+                "completion date. If that date is 12+ months ago, the customer is "
+                "flagged as overdue. The `completion_date` in the event file represents "
+                "when the customer last had maintenance — NOT when the event was detected. "
+                "Severity is assigned based on months overdue: Medium (15-18), High (18-24), "
+                "Critical (24+)."
+            ),
+            "how_converted": (
+                "An overdue maintenance case is considered **converted** (serviced) when "
+                "the same customer — matched by `Customer ID` — books any job (status: "
+                "Completed, Scheduled, In Progress, or Booked) with a `Created Date` after "
+                "their last maintenance `completion_date`, within a 12-month window. "
+                "This means the customer came back for some type of service."
+            ),
+            "data_source": (
+                "- **Event data**: `data/{company}/events/master_files/overdue_maintenance_master.parquet`\n"
+                "- **Conversion check**: `companies/{company}/parquet/Jobs.parquet`\n"
+                "- **Key columns in event file**: `completion_date` (last maintenance date), "
+                "`Customer ID`, `months_overdue`, `Job Type`, `Location ID`\n"
+                "- **Key columns in Jobs**: `Created Date`, `Customer ID`, `Status`"
+            ),
+            "example": (
+                "Customer **10003020** last had maintenance on **2023-06-27** (32 months overdue). "
+                "The system found 1 booked job created after that date — so this overdue case "
+                "counts as **converted** (serviced)."
+            ),
+        },
     },
     "lost_customers": {
         "title": "Lost Customers",
@@ -119,6 +205,37 @@ EVENT_META: Dict[str, Dict[str, Any]] = {
         "entity_id_col": "entity_id",
         "detected_label": "Lost Customers",
         "converted_label": "Returned",
+        "detail": {
+            "how_detected": (
+                "The system cross-references customer addresses from **Customers.parquet** "
+                "with public **Austin building permit records**. When an HVAC permit is "
+                "filed at a customer's address by a different contractor, and that permit "
+                "date is AFTER our last service date for that customer, the customer is "
+                "classified as 'lost'. The `last_contact_date` is the date of our most "
+                "recent interaction with the customer (job, call, or estimate). The "
+                "`competitor_used` field shows which contractor did the work."
+            ),
+            "how_converted": (
+                "A lost customer is considered **returned** when they book any job (status: "
+                "Completed, Scheduled, In Progress, or Booked) with a `Created Date` after "
+                "their `last_contact_date`, within a 12-month window. This means the "
+                "customer came back to us despite having used a competitor."
+            ),
+            "data_source": (
+                "- **Event data**: `data/{company}/events/master_files/lost_customers_master.parquet`\n"
+                "- **Conversion check**: `companies/{company}/parquet/Jobs.parquet`\n"
+                "- **Permit data**: `global_data/permits/permit_data.parquet`\n"
+                "- **Key columns in event file**: `last_contact_date`, `customer_id`, "
+                "`competitor_used`, `severity`, `address`, `months_since_last_contact`\n"
+                "- **Key columns in Jobs**: `Created Date`, `Customer ID`, `Status`"
+            ),
+            "example": (
+                "Customer **10054757** last contacted us on **2018-01-18**. A competitor "
+                "filed an HVAC permit at their address after that date. No jobs were found "
+                "in Jobs.parquet for this customer after their last contact — so this lost "
+                "customer has **not converted** (not returned)."
+            ),
+        },
     },
     "second_chance_leads": {
         "title": "Second Chance Leads",
@@ -139,6 +256,40 @@ EVENT_META: Dict[str, Dict[str, Any]] = {
         "entity_id_col": None,
         "detected_label": "Leads Detected",
         "converted_label": "Converted",
+        "detail": {
+            "how_detected": (
+                "Phone call transcripts are downloaded and processed by an AI system "
+                "(DeepSeek). For each customer's calls, the AI answers three questions:\n\n"
+                "1. **Was this a customer call?** (not sales, spam, or verification)\n"
+                "2. **Did they request service?** (HVAC repair, maintenance, or installation)\n"
+                "3. **Was it booked?** (did the call result in a scheduled appointment)\n\n"
+                "A lead is created ONLY when: customer call = YES, service requested = YES, "
+                "booked = NO. The AI also checks for invalid reasons (reschedule, parts "
+                "confirmation, missed tech call, invoice request, estimate approval, out of "
+                "area, accidental call, membership signup, etc.) and filters those out."
+            ),
+            "how_converted": (
+                "A second chance lead is considered **converted** when the same customer — "
+                "matched by `Customer ID` or `Customer Phone` — books a job (status: "
+                "Completed, Scheduled, In Progress, or Booked) within 12 months after the "
+                "lead was detected. Phone matching is used as a fallback when Customer ID "
+                "is unavailable, with phone numbers normalized (digits only) for comparison."
+            ),
+            "data_source": (
+                "- **Lead data**: Google Sheets (loaded via `SECOND_CHANCE_SHEET_ID` env var)\n"
+                "- **Conversion check**: `companies/{company}/parquet/Jobs.parquet`\n"
+                "- **Key columns in Sheets**: `Analysis Timestamp` or `Call Date` (detection date), "
+                "`Customer ID`, `Customer Phone`\n"
+                "- **Key columns in Jobs**: `created_date` (normalized), `customer_id`, "
+                "`customer_phone`, `status`"
+            ),
+            "example": (
+                "A customer called on **2025-03-15** requesting AC repair. The AI confirmed "
+                "it was a customer call with a service request, but the job was not booked. "
+                "Within 12 months, the system checks if that customer (by ID or phone) booked "
+                "any job in Jobs.parquet. If they did, it counts as **converted**."
+            ),
+        },
     },
 }
 
@@ -370,6 +521,15 @@ def _render_chart_and_table(
         )
         st.altair_chart(chart, width="stretch")
 
+    st.markdown(
+        f"<div style='text-align:center; color:#888; font-size:0.85em; margin-top:-10px; margin-bottom:16px'>"
+        f"<span style='color:#1f77b4'>&#9632;</span> {det_label} &nbsp;&nbsp; "
+        f"<span style='color:#ff7f0e'>&#9632;</span> {conv_label} &nbsp;&nbsp; "
+        f"<span style='color:#2ca02c'>&#9644;&#9644;</span> Conversion Rate (right axis)"
+        f"</div>",
+        unsafe_allow_html=True,
+    )
+
     st.dataframe(
         perf, width="stretch",
         column_config={
@@ -389,6 +549,33 @@ def _render_chart_and_table(
 
 
 # ---------------------------------------------------------------------------
+# Collapsible detail section
+# ---------------------------------------------------------------------------
+
+def _render_detail_section(event_key: str) -> None:
+    meta = EVENT_META[event_key]
+    detail = meta.get("detail")
+    if not detail:
+        return
+
+    with st.expander("How This Works — Detection, Conversion & Data Details", expanded=False):
+        st.markdown("#### How the Event is Detected")
+        st.markdown(detail["how_detected"])
+
+        st.markdown("---")
+        st.markdown("#### How Conversion is Determined")
+        st.markdown(detail["how_converted"])
+
+        st.markdown("---")
+        st.markdown("#### Data Sources & Columns Referenced")
+        st.markdown(detail["data_source"])
+
+        st.markdown("---")
+        st.markdown("#### Example")
+        st.markdown(detail["example"])
+
+
+# ---------------------------------------------------------------------------
 # Standard event dashboard (cancellations, unsold, overdue, lost)
 # ---------------------------------------------------------------------------
 
@@ -398,6 +585,7 @@ def _render_standard_dashboard(company: str, event_key: str) -> None:
     st.markdown(f"### {meta['icon']} {meta['title']}")
     st.markdown(meta["summary"])
     st.info(meta["formula"])
+    _render_detail_section(event_key)
 
     events_df = _load_event_master(company, meta["master_file"])
     if events_df.empty:
@@ -621,6 +809,7 @@ def _render_second_chance_dashboard(company: str) -> None:
     st.markdown(f"### {meta['icon']} {meta['title']}")
     st.markdown(meta["summary"])
     st.info(meta["formula"])
+    _render_detail_section("second_chance_leads")
 
     if not GSHEETS_AVAILABLE:
         st.warning(
