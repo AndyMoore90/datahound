@@ -111,8 +111,7 @@ EVENT_META: Dict[str, Dict[str, Any]] = {
             "how_detected": (
                 "The system scans **Estimates.parquet** for estimates with a status of "
                 "**Dismissed** or **Open** — meaning the customer never accepted them. "
-                "Estimates containing 'This is an empty' in the summary are excluded "
-                "(test records). The `creation_date` records when the estimate was created, "
+                "The `creation_date` records when the estimate was created, "
                 "and `Customer ID` links to the customer. Records with `Customer ID = 0` "
                 "are filtered out as invalid."
             ),
@@ -370,15 +369,13 @@ def _flag_conversions(
     jobs: pd.DataFrame,
     event_key: str,
     period_type: str,
+    window_months: int = 12,
 ) -> pd.DataFrame:
-    """For each event row, determine if the customer converted (booked a job)
-    within 12 months of the event date.  Returns a DataFrame with one row per
-    event containing: event_period, event_date, converted, conversion_period."""
-
     meta = EVENT_META[event_key]
     date_col = meta["event_date_col"]
     cid_col = meta["customer_id_col"]
     eid_col = meta["entity_id_col"]
+    window_days = int(window_months * 30.44)
 
     ev = events.copy()
     ev["_edate"] = pd.to_datetime(ev[date_col], errors="coerce", utc=True).dt.tz_localize(None)
@@ -395,7 +392,7 @@ def _flag_conversions(
     for _, r in ev.iterrows():
         cid = r["_cid"]
         edate = r["_edate"]
-        window_end = edate + timedelta(days=365)
+        window_end = edate + timedelta(days=window_days)
 
         cust_booked = booked[
             (booked["_cust_id"] == cid)
@@ -421,15 +418,16 @@ def _flag_conversions(
     return pd.DataFrame(rows)
 
 
-def _build_period_table(flags: pd.DataFrame, period_type: str) -> pd.DataFrame:
+def _build_period_table(flags: pd.DataFrame, period_type: str, window_months: int = 12) -> pd.DataFrame:
     if flags.empty:
         return pd.DataFrame()
 
+    window_days = int(window_months * 30.44)
     all_periods = sorted(set(flags["event_period"].tolist()))
     rows: list[dict] = []
     for ps in all_periods:
         p_start, p_end = _period_bounds(ps, period_type)
-        eligible_start = p_start - timedelta(days=365)
+        eligible_start = p_start - timedelta(days=window_days)
 
         detected = flags[flags["event_period"] == ps]
         conversions = flags[flags["conversion_period"] == ps]
@@ -461,6 +459,7 @@ def _render_chart_and_table(
     perf: pd.DataFrame,
     period_type: str,
     event_key: str,
+    window_months: int = 12,
 ) -> None:
     meta = EVENT_META[event_key]
     det_label = meta["detected_label"]
@@ -536,7 +535,7 @@ def _render_chart_and_table(
             "period": st.column_config.TextColumn(plabel),
             "total_detected": st.column_config.NumberColumn(det_label),
             "conversions": st.column_config.NumberColumn(conv_label),
-            "eligible_pool": st.column_config.NumberColumn("Eligible Pool (12-mo)"),
+            "eligible_pool": st.column_config.NumberColumn(f"Eligible Pool ({window_months}-mo)"),
             "conversion_rate": st.column_config.NumberColumn("Conversion Rate (%)", format="%.1f"),
         },
     )
@@ -597,23 +596,53 @@ def _render_standard_dashboard(company: str, event_key: str) -> None:
         st.warning("Jobs data not found. Import Jobs.parquet first.")
         return
 
+    # Unsold estimates: option to exclude "This is an empty" estimates
+    if event_key == "unsold_estimates":
+        exclude_empty = st.checkbox(
+            "Exclude estimates containing 'This is an empty' in summary",
+            value=False,
+            key=f"{event_key}_exclude_empty",
+        )
+        if exclude_empty:
+            summary_col = next(
+                (c for c in ["Estimate Summary", "Summary", "summary"] if c in events_df.columns),
+                None,
+            )
+            if summary_col:
+                before = len(events_df)
+                events_df = events_df[
+                    ~events_df[summary_col].astype(str).str.contains("This is an empty", case=False, na=False)
+                ]
+                removed = before - len(events_df)
+                if removed > 0:
+                    st.caption(f"Excluded {removed} empty estimates")
+
     date_col = meta["event_date_col"]
     events_df["_display_date"] = pd.to_datetime(events_df[date_col], errors="coerce", utc=True).dt.tz_localize(None)
 
-    col1, col2, col3 = st.columns(3)
+    max_months = max(3, ((date.today().year - events_df["_display_date"].min().year) * 12
+                         + date.today().month - events_df["_display_date"].min().month)
+                     if not events_df["_display_date"].isna().all() else 12)
+
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     with col1:
         period_type = st.selectbox(
             "View By", ["week", "month", "quarter", "year"],
             index=1, key=f"{event_key}_period",
         )
+    with col2:
+        window_months = st.slider(
+            "Conversion Window (months)", min_value=3, max_value=min(max_months, 120),
+            value=12, step=1, key=f"{event_key}_window",
+        )
     min_dt = events_df["_display_date"].min()
     max_dt = events_df["_display_date"].max()
-    with col2:
+    with col3:
         min_date = st.date_input(
             "Min Date", value=min_dt.date() if pd.notna(min_dt) else date.today(),
             key=f"{event_key}_min",
         )
-    with col3:
+    with col4:
         max_date = st.date_input(
             "Max Date", value=max_dt.date() if pd.notna(max_dt) else date.today(),
             key=f"{event_key}_max",
@@ -626,14 +655,14 @@ def _render_standard_dashboard(company: str, event_key: str) -> None:
     st.metric(f"Total {meta['detected_label']} in Range", f"{len(filtered):,}")
 
     with st.spinner("Calculating conversion rates..."):
-        flags = _flag_conversions(filtered, jobs_df, event_key, period_type)
-        perf = _build_period_table(flags, period_type)
+        flags = _flag_conversions(filtered, jobs_df, event_key, period_type, window_months)
+        perf = _build_period_table(flags, period_type, window_months)
 
     if perf.empty:
         st.info("No performance data for the selected filters.")
         return
 
-    _render_chart_and_table(perf, period_type, event_key)
+    _render_chart_and_table(perf, period_type, event_key, window_months)
 
 
 # ---------------------------------------------------------------------------
@@ -763,10 +792,11 @@ def _load_jobs_polars(company: str) -> Any:
         return None
 
 
-def _scl_find_conversion(lead: dict, jobs_df: Any, entry_date: datetime) -> Optional[datetime]:
+def _scl_find_conversion(lead: dict, jobs_df: Any, entry_date: datetime,
+                         window_months: int = 12) -> Optional[datetime]:
     if jobs_df is None or jobs_df.is_empty():
         return None
-    end = entry_date + timedelta(days=365)
+    end = entry_date + timedelta(days=int(window_months * 30.44))
     cid = lead.get("Customer ID")
     phone = lead.get("normalized_phone", "")
     base_filter = (pl.col("created_date") >= entry_date) & (pl.col("created_date") <= end)
@@ -784,13 +814,14 @@ def _scl_find_conversion(lead: dict, jobs_df: Any, entry_date: datetime) -> Opti
     return None
 
 
-def _scl_build_perf(leads_df: Any, jobs_df: Any, period_type: str) -> pd.DataFrame:
+def _scl_build_perf(leads_df: Any, jobs_df: Any, period_type: str,
+                    window_months: int = 12) -> pd.DataFrame:
     rows: list[dict] = []
     for row in leads_df.iter_rows(named=True):
         entry = row.get("entry_date")
         if entry is None:
             continue
-        conv = _scl_find_conversion(row, jobs_df, entry)
+        conv = _scl_find_conversion(row, jobs_df, entry, window_months)
         rows.append({
             "event_date": entry,
             "event_period": _fmt_period(entry, period_type),
@@ -801,7 +832,7 @@ def _scl_build_perf(leads_df: Any, jobs_df: Any, period_type: str) -> pd.DataFra
         return pd.DataFrame()
     flags = pd.DataFrame(rows)
     flags["event_date"] = pd.to_datetime(flags["event_date"], errors="coerce")
-    return _build_period_table(flags, period_type)
+    return _build_period_table(flags, period_type, window_months)
 
 
 def _render_second_chance_dashboard(company: str) -> None:
@@ -826,18 +857,23 @@ def _render_second_chance_dashboard(company: str) -> None:
         st.warning("No second chance leads found. Check env vars GOOGLE_CREDS and SECOND_CHANCE_SHEET_ID.")
         return
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     with col1:
         period_type = st.selectbox("View By", ["week", "month", "quarter", "year"], index=1, key="scl_period")
+    with col2:
+        window_months = st.slider(
+            "Conversion Window (months)", min_value=3, max_value=120,
+            value=12, step=1, key="scl_window",
+        )
     mn = leads_df.select(pl.col("entry_date").min()).item()
     mx = leads_df.select(pl.col("entry_date").max()).item()
-    with col2:
+    with col3:
         min_entry = st.date_input(
             "Min Date",
             value=mn.date() if mn and isinstance(mn, datetime) else (mn if mn else date.today()),
             key="scl_min",
         )
-    with col3:
+    with col4:
         max_entry = st.date_input(
             "Max Date",
             value=mx.date() if mx and isinstance(mx, datetime) else (mx if mx else date.today()),
@@ -853,13 +889,13 @@ def _render_second_chance_dashboard(company: str) -> None:
     st.metric("Total Leads in Range", len(filtered))
 
     with st.spinner("Calculating conversion rates..."):
-        perf = _scl_build_perf(filtered, jobs_df, period_type)
+        perf = _scl_build_perf(filtered, jobs_df, period_type, window_months)
 
     if perf.empty:
         st.info("No performance data for the selected filters.")
         return
 
-    _render_chart_and_table(perf, period_type, "second_chance_leads")
+    _render_chart_and_table(perf, period_type, "second_chance_leads", window_months)
 
 
 # ---------------------------------------------------------------------------
