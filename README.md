@@ -120,6 +120,11 @@ datahound_pro/
 │       ├── recent_events/            Recent event tracking
 │       └── logs/                     Pipeline and audit logs
 │
+├── services/                      ← Standalone background services
+│   ├── transcript_pipeline.py        AI second chance lead detection
+│   ├── event_upload.py               Google Sheets event sync
+│   └── sms_sheet_sync.py             SMS activity data download
+│
 ├── secrets/                       ← Google OAuth credentials (not committed)
 ├── start_automation.py            ← CLI automation service
 └── requirements.txt               ← Python dependencies
@@ -132,21 +137,32 @@ datahound_pro/
 streamlit run apps/Home.py
 ```
 
-**Start the automation service** (runs pipeline steps on a schedule):
+Everything else is managed from the UI. Go to **Admin > Services** and click
+**"Start All Services"** to launch the scheduler with all background services
+(transcript pipeline, event upload, SMS sync) at their default intervals.
+
+You can also configure each service individually, change intervals, and run
+any service once on demand — all from the same page.
+
+### Advanced: CLI Mode
+
+If you prefer terminal control, the services can still be run standalone:
+
 ```bash
-python start_automation.py
+python start_automation.py                                     # pipeline scheduler
+python services/transcript_pipeline.py --interval-minutes 180  # AI lead detection
+python services/event_upload.py --interval 20                  # Google Sheets sync
+python services/sms_sheet_sync.py --interval-minutes 30        # SMS data download
 ```
 
 ## Environment Variables
-
-For Google Sheets integration (Second Chance Leads dashboard):
 
 | Variable | Description |
 |----------|-------------|
 | `GOOGLE_CREDS` | Path to Google service account credentials JSON |
 | `SECOND_CHANCE_SHEET_ID` | Google Sheets ID for second chance leads data |
 
-These can be set in a `.env` file in the project root.
+These can be set in a `.env` file in `data/{company}/recent_events/`.
 
 ## Requirements
 

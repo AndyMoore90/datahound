@@ -325,12 +325,13 @@ class DataHoundScheduler:
             
             self.persistence.update_task(task)
             
-            # Log execution
             self.persistence.log_task_execution(
                 task.task_id,
                 success,
                 error_message,
-                duration
+                duration,
+                task_name=task.name,
+                task_type=task.task_config.task_type.value,
             )
             
             # Notify completion

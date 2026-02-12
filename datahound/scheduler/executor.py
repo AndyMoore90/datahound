@@ -36,22 +36,22 @@ class TaskExecutor:
         try:
             task_type = task.task_config.task_type
             
-            if task_type == TaskType.DOWNLOAD:
-                return self._execute_download(task)
-            elif task_type == TaskType.PREPARE:
-                return self._execute_prepare(task)
-            elif task_type == TaskType.INTEGRATED_UPSERT:
-                return self._execute_upsert(task)
-            elif task_type == TaskType.HISTORICAL_EVENT_SCAN:
-                return self._execute_event_scan(task)
-            elif task_type == TaskType.CUSTOM_EXTRACTION:
-                return self._execute_extraction(task)
-            elif task_type == TaskType.CREATE_CORE_DATA:
-                return self._execute_core_data(task)
-            elif task_type == TaskType.REFRESH_CORE_DATA:
-                return self._execute_refresh_core_data(task)
-            else:
+            dispatch = {
+                TaskType.DOWNLOAD: self._execute_download,
+                TaskType.PREPARE: self._execute_prepare,
+                TaskType.INTEGRATED_UPSERT: self._execute_upsert,
+                TaskType.HISTORICAL_EVENT_SCAN: self._execute_event_scan,
+                TaskType.CUSTOM_EXTRACTION: self._execute_extraction,
+                TaskType.CREATE_CORE_DATA: self._execute_core_data,
+                TaskType.REFRESH_CORE_DATA: self._execute_refresh_core_data,
+                TaskType.TRANSCRIPT_PIPELINE: self._execute_service_script,
+                TaskType.EVENT_UPLOAD: self._execute_service_script,
+                TaskType.SMS_SHEET_SYNC: self._execute_service_script,
+            }
+            handler = dispatch.get(task_type)
+            if handler is None:
                 return {"success": False, "error": f"Unknown task type: {task_type}"}
+            return handler(task)
                 
         except Exception as e:
             return {"success": False, "error": str(e), "traceback": traceback.format_exc()}
@@ -740,27 +740,15 @@ class TaskExecutor:
             
             # Execute all enabled extractions using the same logic as the UI
             if config.execute_all_enabled:
-                # Try to load saved extraction configuration first
                 try:
-                    # Import the load function from the UI page
-                    sys.path.insert(0, str(Path("apps/pages")))
-                    import importlib.util
-                    spec = importlib.util.spec_from_file_location("custom_extraction", Path("apps/pages/13_Custom_Extraction.py"))
-                    custom_extraction_module = importlib.util.module_from_spec(spec)
-                    spec.loader.exec_module(custom_extraction_module)
-                    
-                    # Load saved configurations
-                    saved_configs = custom_extraction_module.load_extraction_configuration(company)
-                    
+                    from apps.components.extraction_ui import load_extraction_configuration
+                    saved_configs = load_extraction_configuration(company)
                     if saved_configs:
                         enabled_configs = [c for c in saved_configs if c.enabled]
                     else:
-                        # Fall back to default templates
                         available_configs = engine.get_available_extractions()
                         enabled_configs = [c for c in available_configs if c.enabled]
-                        
-                except Exception as load_error:
-                    # Fall back to default templates if loading fails
+                except Exception:
                     available_configs = engine.get_available_extractions()
                     enabled_configs = [c for c in available_configs if c.enabled]
                 
@@ -789,6 +777,7 @@ class TaskExecutor:
                 
                 return {
                     "success": len(errors) == 0,
+                    "error": "; ".join(errors) if errors else "",
                     "total_extracted": total_extracted,
                     "total_saved": total_saved,
                     "extractions_run": len(results),
@@ -891,3 +880,88 @@ class TaskExecutor:
         except Exception as e:
             return {"success": False, "error": str(e)}
 
+    def _execute_service_script(self, task: ScheduledTask) -> Dict[str, Any]:
+        import subprocess
+        task_type = task.task_config.task_type
+        settings = task.task_config.settings or {}
+
+        script_map = {
+            TaskType.TRANSCRIPT_PIPELINE: "services/transcript_pipeline.py",
+            TaskType.EVENT_UPLOAD: "services/event_upload.py",
+            TaskType.SMS_SHEET_SYNC: "services/sms_sheet_sync.py",
+        }
+        script = self.base_dir / script_map.get(task_type, "")
+        if not script.exists():
+            return {"success": False, "error": f"Service script not found: {script}"}
+
+        cmd = [sys.executable, str(script)]
+
+        if task_type == TaskType.TRANSCRIPT_PIPELINE:
+            cmd.append("--run-once")
+            if settings.get("test_limit"):
+                cmd.extend(["--test-limit", str(settings["test_limit"])])
+
+        elif task_type == TaskType.EVENT_UPLOAD:
+            events = settings.get("events", [
+                "recent_cancellations",
+                "recent_lost_customers",
+                "recent_unsold_estimates",
+                "recent_overdue_maintenance",
+                "recent_second_chance_leads",
+            ])
+            cmd.extend(["--events"] + events)
+            cmd.append("--bypass-schedule")
+            if settings.get("clear"):
+                cmd.append("--clear")
+
+        elif task_type == TaskType.SMS_SHEET_SYNC:
+            cmd.append("--run-once")
+            keep = settings.get("keep_files", 12)
+            cmd.extend(["--keep-files", str(keep)])
+
+        log_dir = self.base_dir / "data" / "service_logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file = log_dir / f"{task_type.value}.log"
+
+        try:
+            with open(log_file, "w", encoding="utf-8") as fh:
+                fh.write(f"=== {task_type.value} started at {datetime.now().isoformat()} ===\n")
+                fh.write(f"Command: {' '.join(cmd)}\n\n")
+                fh.flush()
+
+                proc = subprocess.Popen(
+                    cmd,
+                    cwd=str(self.base_dir),
+                    stdout=fh,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                try:
+                    returncode = proc.wait(timeout=settings.get("timeout_seconds", 3600))
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    fh.write("\n\n=== TIMED OUT ===\n")
+                    return {"success": False, "error": "Script timed out"}
+
+                fh.write(f"\n=== Finished with exit code {returncode} ===\n")
+
+            tail = ""
+            try:
+                tail = log_file.read_text(encoding="utf-8", errors="ignore")[-3000:]
+            except Exception:
+                pass
+
+            if returncode != 0:
+                return {
+                    "success": False,
+                    "error": tail[-500:].strip() or f"Exit code {returncode}",
+                    "returncode": returncode,
+                    "log_file": str(log_file),
+                }
+            return {
+                "success": True,
+                "returncode": 0,
+                "log_file": str(log_file),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e)}

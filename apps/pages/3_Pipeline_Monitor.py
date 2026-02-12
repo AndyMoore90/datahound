@@ -514,8 +514,56 @@ def main():
                 columns = df.columns.tolist()
             _render_data_table(df, f"{stage.replace('_', ' ').title()} Activity", columns)
 
+    _render_section_header("Service Logs", "Live output from background services")
+    _render_service_logs()
+
     st.markdown("---")
     st.caption(f"Last refreshed: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+
+def _render_service_logs():
+    log_dir = _P(__file__).resolve().parents[2] / "data" / "service_logs"
+    if not log_dir.exists():
+        st.info("No service logs yet. Start services from Admin > Services.")
+        return
+
+    log_files = {
+        "transcript_pipeline": "Second Chance Lead Detection",
+        "event_upload": "Event Upload to Google Sheets",
+        "sms_sheet_sync": "SMS Activity Sync",
+    }
+
+    available = []
+    for key, label in log_files.items():
+        path = log_dir / f"{key}.log"
+        if path.exists():
+            available.append((key, label, path))
+
+    if not available:
+        st.info("No service logs found yet.")
+        return
+
+    tabs = st.tabs([label for _, label, _ in available])
+    for tab, (key, label, path) in zip(tabs, available):
+        with tab:
+            try:
+                content = path.read_text(encoding="utf-8", errors="ignore")
+                size_kb = path.stat().st_size / 1024
+                modified = datetime.fromtimestamp(path.stat().st_mtime)
+                st.caption(f"Log file: {path.name} | {size_kb:.0f} KB | Last updated: {modified.strftime('%Y-%m-%d %H:%M:%S')}")
+
+                tail_lines = st.slider(
+                    "Lines to show", min_value=50, max_value=2000, value=200,
+                    step=50, key=f"svc_log_lines_{key}",
+                )
+                lines = content.splitlines()
+                shown = lines[-tail_lines:]
+                st.code("\n".join(shown), language="text")
+            except Exception as e:
+                st.error(f"Error reading log: {e}")
+
+    if st.button("Refresh Logs", key="svc_log_refresh"):
+        st.rerun()
 
 
 if __name__ == "__main__":

@@ -282,6 +282,218 @@ def _render_logs(company: str, cfg) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Services tab
+# ---------------------------------------------------------------------------
+
+from apps.components.scheduler_ui import (
+    get_scheduler_instance, render_schedule_config, create_scheduled_task,
+    render_task_manager, render_scheduler_status,
+)
+from datahound.scheduler import TaskType, ScheduleType
+
+
+SERVICE_DEFS = [
+    {
+        "key": "transcript_pipeline",
+        "task_type": TaskType.TRANSCRIPT_PIPELINE,
+        "title": "Second Chance Lead Detection",
+        "desc": (
+            "Downloads call transcripts, runs AI analysis (DeepSeek) to find "
+            "customers who requested service but didn't book, and updates the "
+            "second chance leads data files."
+        ),
+        "default_interval": 180,
+        "settings_fields": [
+            ("test_limit", "Test limit (0 = all profiles)", "number", 0),
+        ],
+    },
+    {
+        "key": "event_upload",
+        "task_type": TaskType.EVENT_UPLOAD,
+        "title": "Event Upload to Google Sheets",
+        "desc": (
+            "Syncs recently detected events (cancellations, unsold estimates, "
+            "overdue maintenance, lost customers) to Google Sheets so the "
+            "marketing team can act on them."
+        ),
+        "default_interval": 20,
+        "settings_fields": [
+            ("bypass_schedule", "Bypass time window (8AM-5PM PT)", "checkbox", False),
+        ],
+    },
+    {
+        "key": "sms_sheet_sync",
+        "task_type": TaskType.SMS_SHEET_SYNC,
+        "title": "SMS Activity Sync",
+        "desc": (
+            "Downloads SMS activity data from Google Sheets. This data is used "
+            "by event removal rules to detect when a customer has responded "
+            "via text message."
+        ),
+        "default_interval": 30,
+        "settings_fields": [
+            ("keep_files", "Recent files to keep", "number", 12),
+        ],
+    },
+]
+
+
+def _render_services(company: str) -> None:
+    st.markdown(
+        "Configure and launch all background services from here. "
+        "The scheduler runs them automatically at the intervals you set."
+    )
+
+    scheduler = get_scheduler_instance()
+    if not scheduler._running:
+        st.warning("The scheduler is not running. Start it below to execute services.")
+    else:
+        st.success("Scheduler is running.")
+
+    st.markdown("---")
+
+    # Start / Stop scheduler
+    col_start, col_stop = st.columns(2)
+    with col_start:
+        if st.button("Start Scheduler", type="primary", key="svc_start_sched",
+                      disabled=scheduler._running):
+            scheduler.start(daemon=True)
+            st.rerun()
+    with col_stop:
+        if st.button("Stop Scheduler", key="svc_stop_sched",
+                      disabled=not scheduler._running):
+            scheduler.stop()
+            st.rerun()
+
+    st.markdown("---")
+    st.markdown("### Create Service Schedules")
+
+    for svc in SERVICE_DEFS:
+        with st.expander(f"{svc['title']}", expanded=False):
+            st.markdown(svc["desc"])
+
+            interval = st.number_input(
+                "Run every (minutes)", min_value=5, max_value=1440,
+                value=svc["default_interval"], step=5,
+                key=f"svc_interval_{svc['key']}",
+            )
+
+            extra_settings: dict = {}
+            for field_key, label, ftype, default in svc["settings_fields"]:
+                if ftype == "number":
+                    extra_settings[field_key] = st.number_input(
+                        label, min_value=0, value=default, step=1,
+                        key=f"svc_setting_{svc['key']}_{field_key}",
+                    )
+                elif ftype == "checkbox":
+                    extra_settings[field_key] = st.checkbox(
+                        label, value=default,
+                        key=f"svc_setting_{svc['key']}_{field_key}",
+                    )
+
+            col_create, col_run = st.columns(2)
+            with col_create:
+                if st.button(f"Schedule", key=f"svc_create_{svc['key']}", type="primary"):
+                    success = create_scheduled_task(
+                        task_type=svc["task_type"],
+                        company=company,
+                        task_name=svc["title"],
+                        task_description=svc["desc"],
+                        schedule_config={
+                            "schedule_type": ScheduleType.INTERVAL,
+                            "interval_minutes": interval,
+                        },
+                        task_config_overrides=extra_settings,
+                    )
+                    if success:
+                        st.success(f"Scheduled {svc['title']} every {interval} min")
+                        st.rerun()
+                    else:
+                        st.error("Failed to create task")
+
+            with col_run:
+                if st.button(f"Run Once Now", key=f"svc_run_{svc['key']}"):
+                    from datahound.scheduler.executor import TaskExecutor
+                    from datahound.scheduler.tasks import (
+                        ScheduledTask, TaskConfiguration, TaskStatus,
+                    )
+                    import uuid
+                    one_shot = ScheduledTask(
+                        task_id=str(uuid.uuid4()),
+                        name=f"{svc['title']} (manual)",
+                        description="Manual one-time execution",
+                        task_config=TaskConfiguration(
+                            task_type=svc["task_type"],
+                            company=company,
+                            settings=extra_settings,
+                        ),
+                        schedule_type=ScheduleType.INTERVAL,
+                        status=TaskStatus.ACTIVE,
+                    )
+                    executor = TaskExecutor(Path.cwd())
+                    with st.spinner(f"Running {svc['title']}..."):
+                        result = executor.execute_task(one_shot)
+                    if result.get("success"):
+                        st.success("Completed successfully")
+                        tail = result.get("stdout_tail", "")
+                        if tail:
+                            with st.expander("Output", expanded=False):
+                                st.code(tail[-3000:])
+                    else:
+                        st.error(f"Failed: {result.get('error', 'Unknown')}")
+                        tail = result.get("stderr_tail", "")
+                        if tail:
+                            st.code(tail[-2000:])
+
+            render_task_manager(
+                task_type=svc["task_type"],
+                company=company,
+                task_name=svc["title"],
+                task_description=svc["desc"],
+                key_context=f"svc_{svc['key']}",
+            )
+
+    st.markdown("---")
+    st.markdown("### Quick Start All Services")
+    st.caption(
+        "Creates default schedules for all 3 services and starts the scheduler. "
+        "This is equivalent to running all the old terminal commands."
+    )
+    if st.button("Start All Services", type="primary", key="svc_start_all"):
+        created = 0
+        for svc in SERVICE_DEFS:
+            existing = [
+                t for t in scheduler.get_all_tasks()
+                if t.task_config.task_type == svc["task_type"]
+                and t.task_config.company == company
+            ]
+            if existing:
+                continue
+            success = create_scheduled_task(
+                task_type=svc["task_type"],
+                company=company,
+                task_name=svc["title"],
+                task_description=svc["desc"],
+                schedule_config={
+                    "schedule_type": ScheduleType.INTERVAL,
+                    "interval_minutes": svc["default_interval"],
+                },
+            )
+            if success:
+                created += 1
+
+        if not scheduler._running:
+            scheduler.start(daemon=True)
+
+        st.success(
+            f"Created {created} new service schedules. Scheduler is running. "
+            f"Transcript pipeline: every 180 min, Event upload: every 20 min, "
+            f"SMS sync: every 30 min."
+        )
+        st.rerun()
+
+
+# ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
 
@@ -304,15 +516,17 @@ def main() -> None:
         st.warning("Select a company to continue.")
         return
 
-    tabs = st.tabs(["Companies", "Settings", "Data Import", "Logs"])
+    tabs = st.tabs(["Services", "Companies", "Settings", "Data Import", "Logs"])
 
     with tabs[0]:
-        _render_companies()
+        _render_services(company)
     with tabs[1]:
-        _render_settings()
+        _render_companies()
     with tabs[2]:
-        _render_import(company)
+        _render_settings()
     with tabs[3]:
+        _render_import(company)
+    with tabs[4]:
         _render_logs(company, cfg)
 
 

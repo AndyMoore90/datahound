@@ -9,7 +9,6 @@ import json
 
 
 class TaskType(Enum):
-    """Types of scheduled tasks"""
     DOWNLOAD = "download"
     PREPARE = "prepare"
     INTEGRATED_UPSERT = "integrated_upsert"
@@ -17,6 +16,9 @@ class TaskType(Enum):
     CUSTOM_EXTRACTION = "custom_extraction"
     CREATE_CORE_DATA = "create_core_data"
     REFRESH_CORE_DATA = "refresh_core_data"
+    TRANSCRIPT_PIPELINE = "transcript_pipeline"
+    EVENT_UPLOAD = "event_upload"
+    SMS_SHEET_SYNC = "sms_sheet_sync"
 
 
 class ScheduleType(Enum):

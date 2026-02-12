@@ -146,15 +146,18 @@ class SchedulerPersistence:
         tasks = self.load_tasks()
         return [task for task in tasks if task.task_config.company == company]
     
-    def log_task_execution(self, task_id: str, success: bool, message: str = "", duration_seconds: float = 0):
-        """Log task execution to history"""
+    def log_task_execution(self, task_id: str, success: bool, message: str = "",
+                           duration_seconds: float = 0, task_name: str = "",
+                           task_type: str = "") -> None:
         try:
             log_entry = {
                 "timestamp": datetime.now().isoformat(),
                 "task_id": task_id,
+                "task_name": task_name,
+                "task_type": task_type,
                 "success": success,
                 "message": message,
-                "duration_seconds": duration_seconds
+                "duration_seconds": duration_seconds,
             }
             
             with self._file_lock():
