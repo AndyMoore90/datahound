@@ -1,0 +1,13 @@
+=== sms_sheet_sync started at 2026-02-23T15:21:01.327230 ===
+Command: C:\Python313\python.exe C:\Users\Andym\Desktop\datahound_pro\services\sms_sheet_sync.py --run-once --keep-files 12
+
+Iteration 1 started at 2026-02-23T15:21:01.845268
+Using credentials at C:\Users\Andym\Desktop\datahound_pro\secrets\McCullough Heating and Air\google\credentials.json
+Using token at C:\Users\Andym\Desktop\datahound_pro\secrets\McCullough Heating and Air\google\sheets_token.json
+Refreshed existing token
+Saved token to C:\Users\Andym\Desktop\datahound_pro\secrets\McCullough Heating and Air\google\sheets_token.json
+Saved CSV to C:\Users\Andym\Desktop\datahound_pro\data\McCullough Heating and Air\sms_exports\google_sheet_20260223_152102.csv
+Cleaning C:\Users\Andym\Desktop\datahound_pro\data\McCullough Heating and Air\sms_exports\google_sheet_20260223_152102.csv
+Kept 30 rows in C:\Users\Andym\Desktop\datahound_pro\data\McCullough Heating and Air\sms_exports\google_sheet_20260223_152102.csv
+
+=== Finished with exit code 0 ===

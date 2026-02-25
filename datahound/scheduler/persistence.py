@@ -16,6 +16,8 @@ except ImportError:
 
 from .tasks import ScheduledTask, TaskType, TaskStatus
 
+from central_logging.config import scheduler_dir
+
 
 class SchedulerPersistence:
     """Handles persistence of scheduled tasks"""
@@ -25,7 +27,7 @@ class SchedulerPersistence:
         self.data_dir = Path(data_dir)
         self.scheduler_dir = self.data_dir / "scheduler"
         self.tasks_file = self.scheduler_dir / "scheduled_tasks.json"
-        self.history_file = self.scheduler_dir / "task_history.jsonl"
+        self.history_file = scheduler_dir() / "task_history.jsonl"
         self.lock_file = self.scheduler_dir / ".scheduler.lock"
         
         # Ensure directories exist

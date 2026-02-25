@@ -5,26 +5,24 @@ from datetime import datetime, UTC
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 
+from central_logging.config import event_detection_dir
+
 
 class EventLogger:
     """Centralized logger for all event operations following JSONL pattern"""
     
     def __init__(self, company: str, data_dir: Path):
         self.company = company
-        self.logs_dir = data_dir.parent / "logs"
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
-        
-        # Different log files for different operations
-        self.event_scan_log = self.logs_dir / "event_scan_log.jsonl"
-        self.llm_analysis_log = self.logs_dir / "llm_analysis_log.jsonl" 
-        self.event_detection_log = self.logs_dir / "event_detection_log.jsonl"
-        self.event_errors_log = self.logs_dir / "event_errors_log.jsonl"
+        self.logs_base = event_detection_dir(company)
+        self.event_scan_log = self.logs_base / "scan.jsonl"
+        self.llm_analysis_log = self.logs_base / "llm_analysis.jsonl"
+        self.event_detection_log = self.logs_base / "event_detection.jsonl"
+        self.event_errors_log = self.logs_base / "errors.jsonl"
     
     def _write_log(self, log_file: Path, record: Dict[str, Any]) -> None:
-        """Write a single log record to specified file"""
         record["ts"] = datetime.now(UTC).isoformat()
         record["company"] = self.company
-        
+        log_file.parent.mkdir(parents=True, exist_ok=True)
         with open(log_file, "a", encoding="utf-8") as f:
             f.write(json.dumps(record) + "\n")
     

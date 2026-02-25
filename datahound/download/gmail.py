@@ -15,14 +15,16 @@ from googleapiclient.discovery import build
 
 from .types import DownloadConfig
 
+BROAD_LINK_FILE_TYPES = ("Customer_Events",)
+SERVICETITAN_DOMAINS = ("servicetitan.com", "onservicetitan.com")
+
 
 class GmailDownloader:
     def __init__(self, config: DownloadConfig):
         self.config = config
         self.data_dir = Path(config.data_dir)
-        # logs under data/<company>/logs/pipeline
-        self.logs_root = self.data_dir.parent / "logs"
-        self.pipeline_dir = self.logs_root / "pipeline"
+        from central_logging.config import pipeline_dir
+        self.pipeline_dir = pipeline_dir(config.company)
         self.processed_ids_path = self.data_dir / "processed_message_ids.json"
         self.log_path = self.pipeline_dir / "download.jsonl"
         self.service = None
@@ -111,44 +113,62 @@ class GmailDownloader:
             html_list.append(base64.urlsafe_b64decode(payload["body"]["data"]).decode("utf-8", errors="ignore"))
         return html_list
 
-    def _find_links(self, html: str) -> List[str]:
-        """Find links matching configured prefixes from multiple HTML sources"""
+    def _link_matches_broad(self, href: str) -> bool:
+        if not href or not href.startswith(("http://", "https://")):
+            return False
+        href_lower = href.lower()
+        if any(domain in href_lower for domain in SERVICETITAN_DOMAINS):
+            return True
+        if any(href_lower.endswith(ext) or ext in href_lower.split("?")[0] for ext in (".xlsx", ".xls", ".csv")):
+            return True
+        return False
+
+    def _link_matches_prefix(self, href: str) -> bool:
+        return any(href.startswith(prefix) for prefix in self.config.gmail.link_prefixes)
+
+    def _find_links(self, html: str, file_type: str = "") -> List[str]:
         soup = BeautifulSoup(html, "html.parser")
-        links = []
-        
-        # Check <a> tags with href
+        use_broad = file_type in BROAD_LINK_FILE_TYPES
+
+        def matches(href: str) -> bool:
+            if use_broad:
+                return self._link_matches_prefix(href) or self._link_matches_broad(href)
+            return self._link_matches_prefix(href)
+
+        links: List[str] = []
         for a in soup.find_all("a", href=True):
             href = a["href"]
-            if any(href.startswith(prefix) for prefix in self.config.gmail.link_prefixes):
+            if matches(href):
                 links.append(href)
-        
-        # Check <button> tags with onclick containing URLs
         for button in soup.find_all("button"):
             onclick = button.get("onclick", "")
             if onclick:
                 url_pattern = r'https?://[^\s\'"<>]+'
-                urls = re.findall(url_pattern, onclick)
-                for url in urls:
-                    if any(url.startswith(prefix) for prefix in self.config.gmail.link_prefixes):
+                for url in re.findall(url_pattern, onclick):
+                    if matches(url):
                         links.append(url)
-            
-            # Check data attributes
             for attr in button.attrs:
-                if 'url' in attr.lower() or 'href' in attr.lower():
+                if "url" in attr.lower() or "href" in attr.lower():
                     val = button.get(attr, "")
-                    if val and any(val.startswith(prefix) for prefix in self.config.gmail.link_prefixes):
+                    if val and matches(val):
                         links.append(val)
-        
-        # Check images wrapped in <a> tags
         for img in soup.find_all("img"):
             parent = img.parent
             if parent and parent.name == "a" and parent.get("href"):
                 href = parent["href"]
-                if any(href.startswith(prefix) for prefix in self.config.gmail.link_prefixes):
+                if matches(href):
                     links.append(href)
-        
         return links
     
+    def _find_sendgrid_click_links(self, html: str) -> List[str]:
+        soup = BeautifulSoup(html, "html.parser")
+        links: List[str] = []
+        for a in soup.find_all("a", href=True):
+            href = a["href"]
+            if "sendgrid" in href.lower() and "click" in href.lower():
+                links.append(href)
+        return links
+
     def _find_all_links(self, html: str) -> List[str]:
         """Find all links in HTML for debugging - checks multiple sources"""
         soup = BeautifulSoup(html, "html.parser")
@@ -266,9 +286,11 @@ class GmailDownloader:
                 ext = ".xlsx"
             elif path.endswith(".xls"):
                 ext = ".xls"
-        # Default to .xlsx for known ServiceTitan-like links if still unknown
-        if not ext and any(link.startswith(prefix) for prefix in self.config.gmail.link_prefixes):
-            ext = ".xlsx"
+        if not ext:
+            if any(link.startswith(prefix) for prefix in self.config.gmail.link_prefixes):
+                ext = ".xlsx"
+            elif file_type in BROAD_LINK_FILE_TYPES and self._link_matches_broad(link):
+                ext = ".xlsx"
         if not ext:
             return None
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -335,7 +357,7 @@ class GmailDownloader:
         })
         return message_ids
 
-    def download_for_type(self, file_type: str) -> List[str]:
+    def download_for_type(self, file_type: str, download_latest: bool = False) -> List[str]:
         self._log({
             "ts": datetime.now().isoformat(),
             "company": self.config.company,
@@ -343,6 +365,7 @@ class GmailDownloader:
             "status": "download_started",
             "allowed_extensions": self.config.allowed_extensions,
             "link_prefixes": self.config.gmail.link_prefixes,
+            "download_latest": download_latest,
         })
         processed_ids = set(self._load_processed_ids())
         message_ids = self.find_unread_message_ids(file_type)
@@ -356,7 +379,7 @@ class GmailDownloader:
             "already_processed": len([m for m in message_ids if m in processed_ids]),
         })
         for message_id in message_ids:
-            if message_id in processed_ids:
+            if not download_latest and message_id in processed_ids:
                 self._log({
                     "ts": datetime.now().isoformat(),
                     "company": self.config.company,
@@ -418,7 +441,20 @@ class GmailDownloader:
                     })
                     for html in html_bodies:
                         all_links = self._find_all_links(html)
-                        matching_links = self._find_links(html)
+                        matching_links = self._find_links(html, file_type)
+                        links = matching_links
+                        if not links:
+                            sendgrid_links = self._find_sendgrid_click_links(html)
+                            if sendgrid_links:
+                                links = sendgrid_links
+                                self._log({
+                                    "ts": datetime.now().isoformat(),
+                                    "company": self.config.company,
+                                    "file_type": file_type,
+                                    "message_id": message_id,
+                                    "status": "using_sendgrid_redirect",
+                                    "sendgrid_links_count": len(sendgrid_links),
+                                })
                         self._log({
                             "ts": datetime.now().isoformat(),
                             "company": self.config.company,
@@ -427,11 +463,11 @@ class GmailDownloader:
                             "status": "links_analysis",
                             "all_links_count": len(all_links),
                             "matching_links_count": len(matching_links),
+                            "links_to_try": len(links),
                             "all_links": all_links[:10],
                             "matching_links": matching_links[:5],
                             "link_prefixes_configured": self.config.gmail.link_prefixes,
                         })
-                        links = matching_links
                         for link in links:
                             self._log({
                                 "ts": datetime.now().isoformat(),
@@ -478,6 +514,8 @@ class GmailDownloader:
                         "status": "marked_as_processed",
                         "files_downloaded": len(downloaded_files),
                     })
+                    if download_latest:
+                        break
                 else:
                     # Don't mark as processed if no file was found
                     # This allows retrying the message later
@@ -499,7 +537,7 @@ class GmailDownloader:
                     links_count = 0
                     if html_bodies:
                         for html in html_bodies:
-                            links_count += len(self._find_links(html))
+                            links_count += len(self._find_links(html, file_type))
                     self._log({
                         "ts": datetime.now().isoformat(),
                         "company": self.config.company,
@@ -531,16 +569,17 @@ class GmailDownloader:
         })
         return downloaded_files
 
-    def run(self, types: List[str]) -> Dict[str, List[str]]:
+    def run(self, types: List[str], download_latest: bool = False) -> Dict[str, List[str]]:
         self._log({
             "ts": datetime.now().isoformat(),
             "company": self.config.company,
             "status": "run_started",
             "file_types_requested": types,
+            "download_latest": download_latest,
         })
-        results = {}
+        results: Dict[str, List[str]] = {}
         for t in types:
-            results[t] = self.download_for_type(t)
+            results[t] = self.download_for_type(t, download_latest=download_latest)
         self._log({
             "ts": datetime.now().isoformat(),
             "company": self.config.company,

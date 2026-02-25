@@ -88,6 +88,11 @@ def _path(company: str, *parts: str) -> Path:
     return Path("data") / company / "logs" / Path(*parts)
 
 
+def _central_path(company: str, process: str, *parts: str) -> Path:
+    from central_logging.config import LOG_ROOT
+    return LOG_ROOT / process / company.replace(" ", "_").replace("/", "_") / Path(*parts)
+
+
 def _normalize_timestamps(df: pd.DataFrame, column: str) -> pd.DataFrame:
     if column in df.columns:
         df[column] = pd.to_datetime(df[column], utc=True, errors="coerce").dt.tz_localize(None)
@@ -98,7 +103,11 @@ def _normalize_timestamps(df: pd.DataFrame, column: str) -> pd.DataFrame:
 
 
 def load_download_logs(company: str, limit: int = 5000) -> pd.DataFrame:
-    rows = _read_jsonl(_path(company, "pipeline", "download.jsonl"), limit)
+    from central_logging.config import pipeline_dir
+    path = pipeline_dir(company) / "download.jsonl"
+    if not path.exists():
+        path = _path(company, "pipeline", "download.jsonl")
+    rows = _read_jsonl(path, limit)
     if not rows:
         return pd.DataFrame(columns=["ts", "company", "file_type", "status", "filename"])
     df = pd.DataFrame(rows)
@@ -108,7 +117,11 @@ def load_download_logs(company: str, limit: int = 5000) -> pd.DataFrame:
 
 
 def load_prepare_logs(company: str, limit: int = 5000) -> pd.DataFrame:
-    rows = _read_jsonl(Path("data") / company / "downloads" / "logs" / "prepare_log.jsonl", limit)
+    from central_logging.config import pipeline_dir
+    path = pipeline_dir(company) / "prepare.jsonl"
+    if not path.exists():
+        path = Path("data") / company / "downloads" / "logs" / "prepare_log.jsonl"
+    rows = _read_jsonl(path, limit)
     if not rows:
         return pd.DataFrame(columns=["ts", "company", "file_type", "status", "source"])
     df = pd.DataFrame(rows)
@@ -118,7 +131,11 @@ def load_prepare_logs(company: str, limit: int = 5000) -> pd.DataFrame:
 
 
 def load_upsert_logs(company: str, limit: int = 20000) -> pd.DataFrame:
-    rows = _read_jsonl(_path(company, "integrated_upsert_log.jsonl"), limit)
+    from central_logging.config import pipeline_dir
+    path = pipeline_dir(company) / "integrated_upsert.jsonl"
+    if not path.exists():
+        path = _path(company, "integrated_upsert_log.jsonl")
+    rows = _read_jsonl(path, limit)
     if not rows:
         return pd.DataFrame(columns=["timestamp", "level", "message", "file_type"])
     df = pd.DataFrame(rows)
@@ -151,12 +168,12 @@ def load_core_data_logs(company: str, limit: int = 2000) -> pd.DataFrame:
 
 
 def load_historical_scan_logs(company: str, limit: int = 5000) -> pd.DataFrame:
-    base = _path(company, "historical")
+    from central_logging.config import event_detection_historical_dir
     frames: List[pd.DataFrame] = []
-    if not base.exists():
-        return pd.DataFrame(columns=["ts", "company", "action", "event_type"])
     for event_type in ["canceled_jobs", "unsold_estimates", "lost_customers", "overdue_maintenance"]:
-        file_path = base / event_type / "scan.jsonl"
+        file_path = event_detection_historical_dir(event_type, company) / "scan.jsonl"
+        if not file_path.exists():
+            file_path = _path(company, "historical", event_type, "scan.jsonl")
         rows = _read_jsonl(file_path, limit)
         if not rows:
             continue
@@ -185,8 +202,12 @@ def load_recent_event_changes(company: str) -> pd.DataFrame:
     return df
 
 
-def load_custom_extraction_logs(limit: int = 5000) -> pd.DataFrame:
-    rows = _read_jsonl(Path("data/logs/custom_extraction_log.jsonl"), limit)
+def load_custom_extraction_logs(company: str | None = None, limit: int = 5000) -> pd.DataFrame:
+    from central_logging.config import extraction_dir
+    path = extraction_dir(company) / "custom_extraction.jsonl" if company else None
+    if path is None or not path.exists():
+        path = Path("data/logs/custom_extraction_log.jsonl")
+    rows = _read_jsonl(path, limit)
     if not rows:
         return pd.DataFrame(columns=["timestamp", "company", "message", "details"])
     df = pd.DataFrame(rows)
@@ -197,7 +218,11 @@ def load_custom_extraction_logs(limit: int = 5000) -> pd.DataFrame:
 
 
 def load_scheduler_history(limit: int = 5000) -> pd.DataFrame:
-    rows = _read_jsonl(Path("data/scheduler/task_history.jsonl"), limit)
+    from central_logging.config import scheduler_dir
+    path = scheduler_dir() / "task_history.jsonl"
+    if not path.exists():
+        path = Path("data/scheduler/task_history.jsonl")
+    rows = _read_jsonl(path, limit)
     if not rows:
         return pd.DataFrame(columns=["timestamp", "task_id", "success"])
     df = pd.DataFrame(rows)
@@ -223,7 +248,7 @@ def load_dashboard_data(company: str, limit: int = 5000) -> Dict[str, pd.DataFra
     data["core_data"] = load_core_data_logs(company, limit)
     data["historical_scan"] = load_historical_scan_logs(company, limit)
     data["recent_events"] = load_recent_event_changes(company)
-    data["custom_extraction"] = load_custom_extraction_logs(limit)
+    data["custom_extraction"] = load_custom_extraction_logs(company, limit)
     data["scheduler"] = load_scheduler_history(limit)
 
     # Add change logs per entity
@@ -255,19 +280,19 @@ def clear_cache() -> None:
 
 
 def clear_logs(company: str, cutoff: Optional[datetime] = None, direction: str = "before") -> None:
+    from central_logging.config import pipeline_dir, scheduler_dir, event_detection_historical_dir, extraction_dir
     targets: List[Tuple[Path, bool]] = []
     base = Path("data") / company
-    pipeline_dir = base / "logs"
-    targets.append((pipeline_dir / "pipeline" / "download.jsonl", True))
-    targets.append((pipeline_dir / "pipeline" / "prepare.jsonl", True))
-    targets.append((pipeline_dir / "pipeline" / "integrated_upsert.jsonl", True))
-    targets.append((pipeline_dir / "pipeline" / "core_data.jsonl", True))
-    targets.append((pipeline_dir / "integrated_upsert_log.jsonl", True))
-    targets.append((pipeline_dir / "integrated_upsert_operations.jsonl", True))
-    targets.append((pipeline_dir / "core_data_operations.jsonl", True))
-    hist_dir = pipeline_dir / "historical"
+    plog = pipeline_dir(company)
+    targets.append((plog / "download.jsonl", True))
+    targets.append((plog / "prepare.jsonl", True))
+    targets.append((plog / "integrated_upsert.jsonl", True))
+    targets.append((plog / "core_data.jsonl", True))
+    targets.append((plog / "customer_profile_build.jsonl", True))
+    targets.append((base / "logs" / "integrated_upsert_operations.jsonl", True))
+    targets.append((base / "logs" / "core_data_operations.jsonl", True))
     for sub in ["canceled_jobs", "unsold_estimates", "lost_customers", "overdue_maintenance"]:
-        targets.append((hist_dir / sub / "scan.jsonl", True))
+        targets.append((event_detection_historical_dir(sub, company) / "scan.jsonl", True))
     for name in [
         "job_changes_log.jsonl",
         "customer_changes_log.jsonl",
@@ -277,11 +302,10 @@ def clear_logs(company: str, cutoff: Optional[datetime] = None, direction: str =
         "location_changes_log.jsonl",
         "membership_changes_log.jsonl",
     ]:
-        targets.append((pipeline_dir / name, True))
-    data_dir = base / "downloads"
-    targets.append((data_dir / "logs" / "prepare_log.jsonl", True))
-    targets.append((Path("data/logs/custom_extraction_log.jsonl"), False))
-    targets.append((Path("data/scheduler/task_history.jsonl"), False))
+        targets.append((base / "logs" / name, True))
+    targets.append((base / "downloads" / "logs" / "prepare_log.jsonl", True))
+    targets.append((extraction_dir(company) / "custom_extraction.jsonl", True))
+    targets.append((scheduler_dir() / "task_history.jsonl", True))
     for path, needs_dir in targets:
         if not path.exists():
             continue

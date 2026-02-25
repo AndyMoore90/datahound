@@ -246,10 +246,9 @@ def prepare_latest_files(config: DownloadConfig, selected_types: Optional[List[s
     if selected_types:
         newest = {t: p for t, p in newest.items() if t in selected_types}
 
+    from central_logging.config import pipeline_dir
     results: Dict[str, Path] = {}
-    logs_dir = out_dir / "logs"
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    log_path = logs_dir / "prepare_log.jsonl"
+    log_path = pipeline_dir(config.company) / "prepare.jsonl"
     for ftype, fpath in newest.items():
         try:
             if not (write_csv or write_parquet):

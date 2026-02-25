@@ -354,8 +354,12 @@ def show_recent_activity_feed(data_dir: Path):
     
     st.markdown("### 📋 Recent System Activity")
     
+    from central_logging.config import event_detection_dir
+    company = data_dir.name
+    event_log_path = event_detection_dir(company) / "event_detection.jsonl"
+    fallback_event = data_dir / "logs" / "event_detection_log.jsonl"
     log_files = [
-        (data_dir / "logs" / "event_detection_log.jsonl", "Event Detection", "⚡")
+        (event_log_path if event_log_path.exists() else fallback_event, "Event Detection", "⚡")
     ]
     
     all_activities = []
@@ -366,12 +370,12 @@ def show_recent_activity_feed(data_dir: Path):
                 entries = read_jsonl(log_file, limit=20)
                 for entry in entries[-10:]:
                     activity = {
-                        'timestamp': entry.get('timestamp', ''),
-                        'message': entry.get('message', ''),
+                        'timestamp': entry.get('timestamp') or entry.get('ts', ''),
+                        'message': entry.get('message') or entry.get('action') or str(entry.get('event_type', '')),
                         'level': entry.get('level', 'info'),
                         'source': source,
                         'icon': icon,
-                        'details': entry.get('details', {})
+                        'details': entry.get('details', {}) or {k: v for k, v in entry.items() if k not in ('timestamp', 'ts', 'message', 'action', 'level')}
                     }
                     all_activities.append(activity)
             except:

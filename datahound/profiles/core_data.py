@@ -22,12 +22,9 @@ class CustomerProfileCoreDataBuilder:
         self.parquet_dir = parquet_dir
         self.data_dir = data_dir
         
-        # Profile storage
+        from central_logging.config import pipeline_dir
         self.profile_file = parquet_dir / "customer_profiles_core_data.parquet"
-        self.log_file = data_dir / "logs" / "customer_profile_build_log.jsonl"
-        
-        # Ensure directories exist
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        self.log_file = pipeline_dir(company) / "customer_profile_build.jsonl"
         
         # Master data cache
         self.master_data: Dict[str, pd.DataFrame] = {}

@@ -32,10 +32,9 @@ class CustomExtractionEngine:
         # Initialize enrichment engine
         self.enrichment = DataEnrichment(company, parquet_dir)
         
-        # Logging
-        self.logs_dir = data_dir.parent / "logs"
-        self.logs_dir.mkdir(parents=True, exist_ok=True)
-        self.log_file = self.logs_dir / "custom_extraction_log.jsonl"
+        from central_logging.config import extraction_dir
+        self.logs_dir = extraction_dir(company)
+        self.log_file = self.logs_dir / "custom_extraction.jsonl"
     
     def extract_single(self, config: ExtractionConfig) -> ExtractionResult:
         """Execute a single extraction configuration"""

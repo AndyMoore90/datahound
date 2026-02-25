@@ -66,6 +66,7 @@ def _render_download(company: str, cfg) -> None:
         st.info("No file types defined in this company's config.")
 
     selected_types = st.multiselect("File types", all_types, default=all_types, key="dl_file_types")
+    download_latest = st.checkbox("Download Latest", value=False, key="dl_latest", help="Download from the most recent email per type, even if already downloaded")
     archive = st.checkbox("Archive existing files before downloading", value=False, key="dl_archive")
     dedup_after = st.checkbox("Delete duplicate files after download", value=False, key="dl_dedup")
     mark_as_read = st.checkbox("Mark matched emails as read", value=cfg.mark_as_read, key="dl_mark_read")
@@ -83,7 +84,7 @@ def _render_download(company: str, cfg) -> None:
             if archive:
                 downloader.archive_existing_files()
             with st.spinner("Downloading..."):
-                results = downloader.run(selected_types)
+                results = downloader.run(selected_types, download_latest=download_latest)
             st.success("Download complete")
             st.json(results)
             if dedup_after:
@@ -330,11 +331,19 @@ def _render_overview(company: str, cfg) -> None:
     data_dir = Path("data") / company
     parquet_dir = Path("companies") / company / "parquet"
 
+    from central_logging.config import pipeline_dir
+    pipeline_log = pipeline_dir(company)
+    fallbacks = [
+        data_dir / "logs" / "pipeline" / "download_log.jsonl",
+        data_dir / "downloads" / "logs" / "prepare_log.jsonl" if (data_dir / "downloads").exists() else data_dir / "logs" / "pipeline" / "prepare_log.jsonl",
+        data_dir / "logs" / "integrated_upsert_log.jsonl",
+        data_dir / "logs" / "customer_profile_build_log.jsonl",
+    ]
     steps = [
-        ("Download", data_dir / "logs" / "pipeline" / "download_log.jsonl"),
-        ("Prepare", data_dir / "logs" / "pipeline" / "prepare_log.jsonl"),
-        ("Update Masters", data_dir / "logs" / "integrated_upsert_log.jsonl"),
-        ("Build Profiles", data_dir / "logs" / "customer_profile_build_log.jsonl"),
+        ("Download", pipeline_log / "download.jsonl" if (pipeline_log / "download.jsonl").exists() else fallbacks[0]),
+        ("Prepare", pipeline_log / "prepare.jsonl" if (pipeline_log / "prepare.jsonl").exists() else fallbacks[1]),
+        ("Update Masters", pipeline_log / "integrated_upsert.jsonl" if (pipeline_log / "integrated_upsert.jsonl").exists() else fallbacks[2]),
+        ("Build Profiles", pipeline_log / "customer_profile_build.jsonl" if (pipeline_log / "customer_profile_build.jsonl").exists() else fallbacks[3]),
     ]
 
     cols = st.columns(len(steps))

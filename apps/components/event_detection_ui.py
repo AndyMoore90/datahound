@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 
 from datahound.events.llm_utils import LLMConfig, LLMAnalyzer, build_aging_systems_system_prompt
 from apps._shared import select_company_config
+from central_logging.config import event_detection_historical_dir
 from apps.components.scheduler_ui import (
     render_schedule_config, render_task_manager, 
     create_scheduled_task, render_scheduler_status
@@ -1858,10 +1859,7 @@ OUTPUT = lost customers with competitor details
     cfg_out_dir_cj = (current.get("canceled_jobs", {}).get("output_dir") or "").strip()
     base_default_cj = (_P(cfg_out_dir_cj) if cfg_out_dir_cj else events_master_default_dir)
     base_default_cj.mkdir(parents=True, exist_ok=True)
-    # logging setup → all logs under data/<company>/logs with structured subdirs
-    logs_root = _P(cfg.data_dir).parent / "logs"
-    event_log_dir = logs_root / "historical" / "overdue_maintenance"
-    event_log_dir.mkdir(parents=True, exist_ok=True)
+    event_log_dir = event_detection_historical_dir("overdue_maintenance", company)
     scan_log_path = event_log_dir / "scan.jsonl"
     def _log(action: str, details: Dict[str, Any]) -> None:
       try:
@@ -2043,8 +2041,7 @@ OUTPUT = lost customers with competitor details
             continue
           df = pd.read_parquet(src, engine="pyarrow")
           # event-specific logs directory
-          cj_log_dir = logs_root / "historical" / "canceled_jobs"
-          cj_log_dir.mkdir(parents=True, exist_ok=True)
+          cj_log_dir = event_detection_historical_dir("canceled_jobs", company)
           cj_log_path = cj_log_dir / "scan.jsonl"
           def _log_cj(action: str, details: Dict[str, Any]) -> None:
             try:
@@ -2215,8 +2212,7 @@ OUTPUT = lost customers with competitor details
             continue
           df = pd.read_parquet(src, engine="pyarrow")
           # logs
-          ue_log_dir = logs_root / "historical" / "unsold_estimates"
-          ue_log_dir.mkdir(parents=True, exist_ok=True)
+          ue_log_dir = event_detection_historical_dir("unsold_estimates", company)
           ue_log_path = ue_log_dir / "scan.jsonl"
           def _log_ue(action: str, details: Dict[str, Any]) -> None:
             try:
@@ -2404,8 +2400,7 @@ OUTPUT = lost customers with competitor details
           loc_src = parquet_dir / cfg.get("locations_file", "Locations.parquet")
           jobs_src = parquet_dir / cfg.get("jobs_file", "Jobs.parquet")
           # logging setup for aging_systems
-          as_log_dir = logs_root / "historical" / "aging_systems"
-          as_log_dir.mkdir(parents=True, exist_ok=True)
+          as_log_dir = event_detection_historical_dir("aging_systems", company)
           as_log_path = as_log_dir / "scan.jsonl"
           def _log_as(action: str, details: Dict[str, Any]) -> None:
             try:
@@ -3124,8 +3119,7 @@ OUTPUT = lost customers with competitor details
           ui_log(f"[{et}] Starting lost customers analysis...")
           
           # Set up logging for lost_customers
-          lc_log_dir = logs_root / "historical" / "lost_customers"
-          lc_log_dir.mkdir(parents=True, exist_ok=True)
+          lc_log_dir = event_detection_historical_dir("lost_customers", company)
           lc_log_path = lc_log_dir / "scan.jsonl"
           
           def _log_lc(action: str, details: Dict[str, Any]) -> None:
@@ -3402,9 +3396,7 @@ OUTPUT = lost customers with competitor details
         if not analyzer.is_available():
           st.error("DeepSeek API not configured. Set API key in config/global.json.")
         else:
-          logs_root2 = _P(cfg.data_dir).parent / "logs"
-          llm_log_path2 = (logs_root2 / "historical" / "aging_systems" / "llm_interactions.jsonl")
-          llm_log_path2.parent.mkdir(parents=True, exist_ok=True)
+          llm_log_path2 = event_detection_historical_dir("aging_systems", company) / "llm_interactions.jsonl"
           system_prompt_use = (custom_prompt_global if use_custom_global and custom_prompt_global else built_prompt_global)
           to_process = []
           if run_all and yaml_files:

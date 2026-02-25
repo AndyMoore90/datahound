@@ -522,7 +522,8 @@ def main():
 
 
 def _render_service_logs():
-    log_dir = _P(__file__).resolve().parents[2] / "data" / "service_logs"
+    from central_logging.config import scheduler_dir
+    log_dir = scheduler_dir()
     if not log_dir.exists():
         st.info("No service logs yet. Start services from Admin > Services.")
         return

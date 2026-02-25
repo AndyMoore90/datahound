@@ -1,0 +1,35 @@
+=== event_upload started at 2026-02-23T15:30:08.820294 ===
+Command: C:\Python313\python.exe C:\Users\Andym\Desktop\datahound_pro\services\event_upload.py --events recent_cancellations recent_lost_customers recent_unsold_estimates recent_overdue_maintenance recent_second_chance_leads
+
+################################################################################
+RECENT EVENT UPLOAD - Started at 2026-02-23T23:30:09.924798+00:00
+Events: recent_cancellations, recent_lost_customers, recent_unsold_estimates, recent_overdue_maintenance, recent_second_chance_leads
+
+Processing recent_cancellations
+Loaded 31 rows from recent_cancellations.parquet
+Updating 31 rows and appending 0 rows to 'Cancellations'
+Completed upload for recent_cancellations
+
+Processing recent_lost_customers
+Loaded 125 rows from recent_lost_customers.parquet
+Updating 0 rows and appending 0 rows to 'Lost Customers'
+Completed upload for recent_lost_customers
+
+Processing recent_unsold_estimates
+Loaded 32 rows from recent_unsold_estimates.parquet
+Updating 0 rows and appending 0 rows to 'Unsold Estimates'
+Completed upload for recent_unsold_estimates
+
+Processing recent_overdue_maintenance
+Loaded 3049 rows from recent_overdue_maintenance.parquet
+Updating 3049 rows and appending 0 rows to 'Overdue Maintenance'
+Completed upload for recent_overdue_maintenance
+
+Processing recent_second_chance_leads
+Loaded 1094 rows from recent_second_chance_leads.parquet
+Updating 0 rows and appending 0 rows to 'Second Chance Leads'
+Completed upload for recent_second_chance_leads
+################################################################################
+Upload completed at 2026-02-23T23:30:42.117960+00:00
+
+=== Finished with exit code 0 ===

@@ -22,6 +22,7 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.append(str(PROJECT_ROOT))
 from datahound.extract.engine import CustomExtractionEngine
+from central_logging.writer import write_transcript_pipeline
 from datahound.extract.types import ExtractionConfig
 from openai import OpenAI
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -518,7 +519,6 @@ def backfill_processed_customers_from_persistent_files() -> None:
                 
                 save_processed_customer_data(processed_customer_data)
                 backfilled_count += 1
-                print(f"Backfilled customer {customer_phone} with {len(call_ids)} call IDs")
     
     print(f"Backfill completed: {backfilled_count} customers added to processed_customers.jsonl")
 
@@ -1462,25 +1462,20 @@ Provide a simple JSON response:
             print(f"Analysis failed for {customer_phone}")
             return None
 
-    def process_all_customers(self, customer_profiles: List[Dict[str, Any]], concurrent_calls: int = 5) -> None:
+    def process_all_customers(self, customer_profiles: List[Dict[str, Any]], concurrent_calls: int = 5) -> Dict[str, int]:
         total_customers = len(customer_profiles)
         print(f"Processing {total_customers} customer profiles with {concurrent_calls} concurrent API calls...")
-        
-        # Create numbered profiles for tracking
+
         numbered_profiles = [(i + 1, profile) for i, profile in enumerate(customer_profiles)]
-        
         completed_count = 0
         failed_count = 0
         skipped_count = 0
-        
+
         with ThreadPoolExecutor(max_workers=concurrent_calls) as executor:
-            # Submit all tasks
             future_to_profile = {
                 executor.submit(self.analyze_customer_safe, profile, num, total_customers): (num, profile)
                 for num, profile in numbered_profiles
             }
-            
-            # Process completed tasks
             for future in as_completed(future_to_profile):
                 num, profile = future_to_profile[future]
                 try:
@@ -1495,14 +1490,19 @@ Provide a simple JSON response:
                 except Exception as e:
                     print(f"Thread error for customer {profile['customer_phone']}: {e}")
                     failed_count += 1
-        
+
         print(f"\nAnalysis Summary:")
         print(f"Completed: {completed_count} customers")
         print(f"Skipped: {skipped_count} customers (no new calls)")
         print(f"Failed: {failed_count} customers")
-        
         if completed_count + failed_count > 0:
             print(f"Success Rate: {(completed_count / (completed_count + failed_count) * 100):.1f}%")
+        return {
+            "completed": completed_count,
+            "skipped": skipped_count,
+            "failed": failed_count,
+            "api_calls_made": completed_count,
+        }
 
     def save_to_parquet(self, output_file: str, customer_profiles: List[Dict[str, Any]] = None) -> None:
         """Save results to Parquet format (recommended for transcript data)"""
@@ -1914,20 +1914,19 @@ def save_processed_customer(customer_phone: str, call_ids: Set[str], analysis_ti
 
 
 def log_analysis_failure(customer_phone: str, error_type: str, error_message: str, call_ids: List[str], analysis_timestamp: str) -> None:
-    """Log analysis failures for debugging"""
-    failure_file = SECOND_CHANCE_DATA_DIR / FAILURE_LOG_FILE
-    
     record = {
-        'customer_phone': customer_phone,
-        'error_type': error_type,
-        'error_message': error_message,
-        'call_ids': call_ids,
-        'failure_timestamp': analysis_timestamp
+        "file": "analysis_failures.jsonl",
+        "level": "error",
+        "message": "analysis_failure",
+        "company": "McCullough Heating and Air",
+        "customer_phone": customer_phone,
+        "error_type": error_type,
+        "error_message": error_message,
+        "call_ids": call_ids,
+        "failure_timestamp": analysis_timestamp,
     }
-    
     try:
-        with open(failure_file, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(record) + '\n')
+        write_transcript_pipeline(record)
     except Exception as e:
         print(f"Error logging failure: {e}")
 
@@ -2068,6 +2067,7 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> None:
+    import uuid
     args = parse_args()
     credentials_path = Path(args.credentials).expanduser().resolve()
     token_path = Path(args.token).expanduser().resolve()
@@ -2076,57 +2076,91 @@ def main() -> None:
     interval_minutes = max(args.interval_minutes, 1)
     history: deque[Path] = deque()
     iteration = 0
-    
+    run_id = str(uuid.uuid4())[:8]
+    company = "McCullough Heating and Air"
+
     print("Starting Second Chance Lead Detection Process")
     print("=" * 60)
-    
-    # Download Google Sheet data once per execution
+    write_transcript_pipeline({
+        "file": "pipeline_run.jsonl",
+        "step": "start",
+        "status": "started",
+        "run_id": run_id,
+        "company": company,
+    })
+
     print("\nStep 1: Downloading Google Sheet data...")
+    step_start = time.perf_counter()
     creds = load_credentials(credentials_path, token_path)
     output_path = resolve_output_path(args.output)
     saved_path = download_csv(args.sheet_id, creds, output_path, args.gid)
     print(f"Saved CSV to {saved_path}")
-    
-    # Check if this is a duplicate download
+    write_transcript_pipeline({
+        "file": "pipeline_run.jsonl",
+        "step": "download",
+        "status": "completed",
+        "run_id": run_id,
+        "company": company,
+        "duration_ms": int((time.perf_counter() - step_start) * 1000),
+        "saved_path": str(saved_path),
+    })
+
     if is_duplicate_download(saved_path):
         print("Duplicate download detected - skipping entire process")
         print("Execution skipped due to duplicate data")
+        write_transcript_pipeline({
+            "file": "pipeline_run.jsonl",
+            "step": "duplicate_check",
+            "status": "skipped",
+            "run_id": run_id,
+            "company": company,
+            "reason": "duplicate_download",
+        })
         return
-    
-    # Archive old downloaded files since this is a new download
+
     archive_old_downloaded_files(saved_path)
-    
-    # Backfill processed customers if needed
     backfill_processed_customers_from_persistent_files()
     
     while True:
         iteration += 1
         started = datetime.now().isoformat()
+        iter_run_id = f"{run_id}_iter{iteration}"
         print(f"\nIteration {iteration} started at {started}")
-        
+        write_transcript_pipeline({
+            "file": "pipeline_run.jsonl",
+            "step": "iteration_start",
+            "status": "started",
+            "run_id": iter_run_id,
+            "company": company,
+            "iteration": iteration,
+        })
+
         try:
-            
-            # Step 2: Process and clean transcript data
             print("\nStep 2: Processing and cleaning transcript data...")
+            step_start = time.perf_counter()
             clean_csv_file(saved_path)
-            
-            # Step 3: Load processed data and create customer profiles
+            write_transcript_pipeline({
+                "file": "pipeline_run.jsonl",
+                "step": "clean_csv",
+                "status": "completed",
+                "run_id": iter_run_id,
+                "company": company,
+                "duration_ms": int((time.perf_counter() - step_start) * 1000),
+            })
+
             print("\nStep 3: Creating customer call profiles...")
+            step_start = time.perf_counter()
             try:
                 df = pd.read_csv(saved_path, sep=',', quoting=csv.QUOTE_ALL, quotechar='"', engine='python')
                 print(f"Loaded {len(df)} transcript records")
-                
+
                 new_customer_profiles = create_customer_call_profiles(df)
                 print(f"Created {len(new_customer_profiles)} new customer profiles")
-                
-                # Load existing profiles and merge with new ones
+
                 existing_profiles = load_existing_customer_profiles()
                 customer_profiles = merge_customer_profiles(existing_profiles, new_customer_profiles)
-                
-                # Save merged customer profiles to persistent file
                 save_customer_profiles(customer_profiles)
-                
-                # Display profile statistics
+
                 total_invalid_calls = sum(profile.get('invalid_calls', 0) for profile in customer_profiles)
                 total_valid_calls = sum(profile['total_calls'] for profile in customer_profiles)
                 print(f"Statistics:")
@@ -2134,22 +2168,59 @@ def main() -> None:
                 print(f"   - Total invalid calls (dropped): {total_invalid_calls}")
                 print(f"   - New customer profiles: {len(new_customer_profiles)}")
                 print(f"   - Total customer profiles: {len(customer_profiles)}")
-                
+
+                write_transcript_pipeline({
+                    "file": "pipeline_run.jsonl",
+                    "step": "create_profiles",
+                    "status": "completed",
+                    "run_id": iter_run_id,
+                    "company": company,
+                    "duration_ms": int((time.perf_counter() - step_start) * 1000),
+                    "profiles_count": len(customer_profiles),
+                    "new_profiles_count": len(new_customer_profiles),
+                    "total_valid_calls": total_valid_calls,
+                    "total_invalid_calls": total_invalid_calls,
+                })
             except Exception as e:
                 print(f"Error processing transcript data: {e}")
+                write_transcript_pipeline({
+                    "file": "pipeline_run.jsonl",
+                    "step": "create_profiles",
+                    "status": "error",
+                    "run_id": iter_run_id,
+                    "company": company,
+                    "error": str(e),
+                })
                 raise
-            
-            # Step 4: Load Calls.parquet and Jobs.parquet data for additional context
+
             print("\nStep 4: Loading Calls.parquet and Jobs.parquet data...")
+            step_start = time.perf_counter()
             calls_df = load_calls_data()
             jobs_df = load_jobs_data()
-            
-            # Step 5: AI Analysis for Second Chance Leads
+            write_transcript_pipeline({
+                "file": "pipeline_run.jsonl",
+                "step": "load_calls_jobs",
+                "status": "completed",
+                "run_id": iter_run_id,
+                "company": company,
+                "duration_ms": int((time.perf_counter() - step_start) * 1000),
+                "calls_count": len(calls_df),
+                "jobs_count": len(jobs_df),
+            })
+
             print("\nStep 5: AI Analysis for Second Chance Leads...")
+            step_start = time.perf_counter()
             if not DEEPSEEK_API_KEY:
                 print("Warning: No DeepSeek API key provided. Skipping AI analysis.")
+                write_transcript_pipeline({
+                    "file": "pipeline_run.jsonl",
+                    "step": "ai_analysis",
+                    "status": "skipped",
+                    "run_id": iter_run_id,
+                    "company": company,
+                    "reason": "no_api_key",
+                })
             else:
-                # Apply test limit if specified
                 profiles_to_analyze = customer_profiles
                 if args.test_limit:
                     profiles_to_analyze = customer_profiles[:args.test_limit]
@@ -2157,39 +2228,58 @@ def main() -> None:
                 elif MAX_PROFILES_TO_ANALYZE:
                     profiles_to_analyze = customer_profiles[:MAX_PROFILES_TO_ANALYZE]
                     print(f"Testing mode: Limited to {len(profiles_to_analyze)} profiles (out of {len(customer_profiles)} total)")
-                
+
                 analyzer = SecondChanceLeadAnalyzer(jobs_df=jobs_df)
-                analyzer.process_all_customers(profiles_to_analyze, concurrent_calls=CONCURRENT_API_CALLS)
-                
-                # Step 6: Update persistent files
+                stats = analyzer.process_all_customers(profiles_to_analyze, concurrent_calls=CONCURRENT_API_CALLS)
+
+                write_transcript_pipeline({
+                    "file": "pipeline_run.jsonl",
+                    "step": "ai_analysis",
+                    "status": "completed",
+                    "run_id": iter_run_id,
+                    "company": company,
+                    "duration_ms": int((time.perf_counter() - step_start) * 1000),
+                    "profiles_to_analyze": len(profiles_to_analyze),
+                    "customers_analyzed": stats["completed"],
+                    "customers_skipped": stats["skipped"],
+                    "customers_failed": stats["failed"],
+                    "api_calls_made": stats["api_calls_made"],
+                    "second_chance_count": sum(1 for r in analyzer.analysis_results if r.get("is_second_chance_lead")),
+                })
+
                 print("\nStep 6: Updating persistent second chance leads files...")
-                
-                # Update persistent files with new results
                 update_persistent_files(analyzer.analysis_results, customer_profiles)
-                
-                # Count second chance leads
                 second_chance_count = sum(1 for result in analyzer.analysis_results if result.get('is_second_chance_lead'))
                 print(f"Found {second_chance_count} second chance leads out of {len(analyzer.analysis_results)} analyzed customers")
                 print(f"Persistent files updated in {SECOND_CHANCE_DATA_DIR}")
-                
-                # Backfill processed customers again after updating persistent files
+
                 print("\nStep 7: Backfilling processed customers after persistent file updates...")
                 backfill_processed_customers_from_persistent_files()
 
-                # Step 8: Run recent second chance leads extraction
+                print("\nStep 8: Run recent second chance leads extraction")
                 try:
                     project_root = Path(__file__).resolve().parent.parent
-                    company = "McCullough Heating and Air"
-                    data_dir = project_root / "data" / company
-                    parquet_dir = project_root / "companies" / company / "parquet"
+                    ext_company = "McCullough Heating and Air"
+                    data_dir = project_root / "data" / ext_company
+                    parquet_dir = project_root / "companies" / ext_company / "parquet"
                     previous_cwd = Path.cwd()
                     print(f"[DownloadScript] Switching CWD from {previous_cwd} to {project_root}", flush=True)
                     try:
                         os.chdir(project_root)
-                        extraction_engine = CustomExtractionEngine(company, data_dir, parquet_dir)
+                        extraction_engine = CustomExtractionEngine(ext_company, data_dir, parquet_dir)
                         result = extraction_engine.extract_second_chance_leads()
                         print("Triggered recent second chance leads extraction", flush=True)
                         print(f"Extraction result: success={result.success}, saved={result.records_saved}, message={result.error_message}", flush=True)
+                        write_transcript_pipeline({
+                            "file": "pipeline_run.jsonl",
+                            "step": "extraction",
+                            "status": "completed" if result.success else "error",
+                            "run_id": iter_run_id,
+                            "company": company,
+                            "success": result.success,
+                            "records_saved": result.records_saved,
+                            "error": result.error_message or None,
+                        })
                         if not result.success:
                             print(f"Extraction warning: {result.error_message}")
                     finally:
@@ -2197,19 +2287,43 @@ def main() -> None:
                         os.chdir(previous_cwd)
                 except Exception as extract_error:
                     print(f"WARNING: Failed to run second chance leads extraction: {extract_error}")
+                    write_transcript_pipeline({
+                        "file": "pipeline_run.jsonl",
+                        "step": "extraction",
+                        "status": "error",
+                        "run_id": iter_run_id,
+                        "company": company,
+                        "error": str(extract_error),
+                    })
                     import traceback as _traceback
                     _traceback.print_exc()
-            
-            # Archive old files
+
             history.append(saved_path)
             while keep_files and len(history) > keep_files:
                 old_path = history.popleft()
                 archive_file(old_path, archive_dir)
-                
+
             print(f"\nIteration {iteration} completed successfully!")
-            
+            write_transcript_pipeline({
+                "file": "pipeline_run.jsonl",
+                "step": "iteration_complete",
+                "status": "completed",
+                "run_id": iter_run_id,
+                "company": company,
+                "iteration": iteration,
+            })
+
         except Exception as exc:
             print(f"Iteration {iteration} error: {exc}")
+            write_transcript_pipeline({
+                "file": "pipeline_run.jsonl",
+                "step": "iteration_error",
+                "status": "error",
+                "run_id": iter_run_id,
+                "company": company,
+                "iteration": iteration,
+                "error": str(exc),
+            })
             import traceback
             traceback.print_exc()
             

@@ -910,7 +910,8 @@ class TaskExecutor:
                 "recent_second_chance_leads",
             ])
             cmd.extend(["--events"] + events)
-            cmd.append("--bypass-schedule")
+            if settings.get("bypass_schedule"):
+                cmd.append("--bypass-schedule")
             if settings.get("clear"):
                 cmd.append("--clear")
 
@@ -919,13 +920,15 @@ class TaskExecutor:
             keep = settings.get("keep_files", 12)
             cmd.extend(["--keep-files", str(keep)])
 
-        log_dir = self.base_dir / "data" / "service_logs"
+        from central_logging.config import scheduler_dir
+        log_dir = scheduler_dir()
         log_dir.mkdir(parents=True, exist_ok=True)
         log_file = log_dir / f"{task_type.value}.log"
+        started_at = datetime.now().isoformat()
 
         try:
             with open(log_file, "w", encoding="utf-8") as fh:
-                fh.write(f"=== {task_type.value} started at {datetime.now().isoformat()} ===\n")
+                fh.write(f"=== {task_type.value} started at {started_at} ===\n")
                 fh.write(f"Command: {' '.join(cmd)}\n\n")
                 fh.flush()
 
@@ -948,6 +951,26 @@ class TaskExecutor:
             tail = ""
             try:
                 tail = log_file.read_text(encoding="utf-8", errors="ignore")[-3000:]
+            except Exception:
+                pass
+
+            ended_at = datetime.now().isoformat()
+            exec_record = {
+                "file": "execution.jsonl",
+                "task_id": task.task_id,
+                "task_type": task_type.value,
+                "company": task.task_config.company,
+                "started_at": started_at,
+                "ended_at": ended_at,
+                "success": returncode == 0,
+                "returncode": returncode,
+                "output_path": str(log_file),
+            }
+            if returncode != 0:
+                exec_record["error"] = tail[-500:].strip() or f"Exit code {returncode}"
+            try:
+                from central_logging.writer import write_scheduler
+                write_scheduler(exec_record)
             except Exception:
                 pass
 

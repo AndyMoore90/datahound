@@ -68,10 +68,9 @@ class IntegratedUpsertEngine:
         self.data_dir = data_dir
         self.tables_dir = tables_dir
         self.parquet_dir = tables_dir
-        
-        # Logging
-        self.log_file = data_dir / "logs" / "integrated_upsert_log.jsonl"
-        self.log_file.parent.mkdir(parents=True, exist_ok=True)
+        from central_logging.config import pipeline_dir
+        company = data_dir.name
+        self.log_file = pipeline_dir(company) / "integrated_upsert.jsonl"
     
     def process_prepared_files(self, 
                               prepared_files: Dict[str, Path],

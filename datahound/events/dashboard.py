@@ -7,12 +7,11 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional
 import pandas as pd
 
+from central_logging.config import event_detection_dir
 
-def load_event_analytics(logs_dir: Path, days_back: int = 30) -> Dict[str, Any]:
-    """Load and analyze event logs for dashboard"""
-    
+
+def load_event_analytics(logs_dir: Path | None = None, company: str | None = None, days_back: int = 30) -> Dict[str, Any]:
     cutoff_date = datetime.now() - timedelta(days=days_back)
-    
     analytics = {
         "scan_summary": {},
         "event_trends": {},
@@ -20,13 +19,15 @@ def load_event_analytics(logs_dir: Path, days_back: int = 30) -> Dict[str, Any]:
         "error_analysis": {},
         "llm_usage": {}
     }
-    
-    # Load different log types
+    if logs_dir is None and company:
+        logs_dir = event_detection_dir(company)
+    elif logs_dir is None:
+        return analytics
     log_files = {
-        "scans": logs_dir / "event_scan_log.jsonl",
-        "detections": logs_dir / "event_detection_log.jsonl", 
-        "llm": logs_dir / "llm_analysis_log.jsonl",
-        "errors": logs_dir / "event_errors_log.jsonl"
+        "scans": logs_dir / "scan.jsonl",
+        "detections": logs_dir / "event_detection.jsonl",
+        "llm": logs_dir / "llm_analysis.jsonl",
+        "errors": logs_dir / "errors.jsonl"
     }
     
     # Analyze scan operations
