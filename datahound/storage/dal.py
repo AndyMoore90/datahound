@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Iterable, Mapping, Protocol, Sequence
 
 from .db.models import (
@@ -25,11 +26,11 @@ from .manifest import RunManifest
 class DALDependencies:
     """Container for the repositories that power a ``StorageDAL`` implementation."""
 
-    scheduler_repo: SchedulerRepository
-    run_repo: RunRepository
-    event_repo: EventRepository
-    notification_repo: NotificationRepository
-    review_repo: ReviewRepository
+    scheduler_repo: SchedulerRepository | None = None
+    run_repo: RunRepository | None = None
+    event_repo: EventRepository | None = None
+    notification_repo: NotificationRepository | None = None
+    review_repo: ReviewRepository | None = None
 
 
 class StorageDAL(Protocol):
@@ -44,10 +45,22 @@ class StorageDAL(Protocol):
     def update_task(self, task: SchedulerTaskRecord) -> SchedulerTaskRecord:
         ...
 
+    def delete_task(self, task_key: str) -> bool:
+        ...
+
     def list_tasks(self, task_filter: SchedulerTaskFilter | None = None) -> Iterable[SchedulerTaskRecord]:
         ...
 
+    def get_task(self, task_key: str) -> SchedulerTaskRecord | None:
+        ...
+
     def record_task_run(self, run: SchedulerRunRecord) -> SchedulerRunRecord:
+        ...
+
+    def list_task_runs(self, *, task_key: str | None = None, limit: int = 100) -> Iterable[SchedulerRunRecord]:
+        ...
+
+    def purge_task_runs(self, *, older_than: datetime) -> int:
         ...
 
     # Pipeline runs --------------------------------------------------------------

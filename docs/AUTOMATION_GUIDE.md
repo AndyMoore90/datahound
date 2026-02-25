@@ -171,6 +171,10 @@ screen -r datahound-scheduler
 
 ## Monitoring and Troubleshooting
 
+> ℹ️ **Storage backend:** Scheduler tasks now persist to Postgres via the storage
+> DAL when `DATAHOUND_STORAGE_URL` is set. See
+> `docs/SCHEDULER_PERSISTENCE_MIGRATION.md` for migration + rollback steps.
+
 ### View Scheduler Status
 
 1. Check the **Scheduler Status** tab on any automation page
@@ -296,4 +300,3 @@ For issues or questions:
 2. Review the logs for error messages
 3. Ensure all dependencies are installed
 4. Verify configuration files are correct
-
