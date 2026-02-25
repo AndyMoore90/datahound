@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from typing import Iterable, Protocol
-from uuid import UUID
 
 from ..models import SchedulerRunRecord, SchedulerTaskRecord
 
@@ -25,11 +25,20 @@ class SchedulerRepository(Protocol):
     def update_task(self, task: SchedulerTaskRecord) -> SchedulerTaskRecord:
         ...
 
+    def delete_task(self, task_key: str) -> bool:
+        ...
+
     def list_tasks(self, task_filter: SchedulerTaskFilter | None = None) -> Iterable[SchedulerTaskRecord]:
         ...
 
     def record_run(self, run: SchedulerRunRecord) -> SchedulerRunRecord:
         ...
 
-    def get_task(self, task_id: UUID) -> SchedulerTaskRecord | None:
+    def list_runs(self, *, task_key: str | None = None, limit: int = 100) -> Iterable[SchedulerRunRecord]:
+        ...
+
+    def purge_runs(self, cutoff: datetime) -> int:
+        ...
+
+    def get_task(self, task_key: str) -> SchedulerTaskRecord | None:
         ...
