@@ -173,3 +173,5 @@ Install with:
 ```bash
 pip install -r requirements.txt
 ```
+
+Smoke-4 verification: README touched for smoke-readme-4.
