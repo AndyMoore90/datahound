@@ -1,0 +1,41 @@
+name: ai-review-gates
+
+on:
+  pull_request:
+
+jobs:
+  codex-review:
+    name: codex-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python datahound/devops/ai_review_gate.py --mode codex
+
+  claude-review:
+    name: claude-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python datahound/devops/ai_review_gate.py --mode claude
+
+  deepseek-review:
+    name: deepseek-review
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python datahound/devops/ai_review_gate.py --mode deepseek
