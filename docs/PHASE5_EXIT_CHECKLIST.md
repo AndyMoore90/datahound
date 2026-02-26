@@ -11,6 +11,7 @@ Use this checklist to declare Phase 5 complete.
 - [ ] `python -m datahound.devops.control_plane_readiness` returns exit code 0
 - [ ] `python -m datahound.devops.control_plane_drift_check --max-missing 0` returns exit code 0
 - [ ] `python -m datahound.devops.phase5_exit_check` returns exit code 0 (aggregated gate)
+- [ ] `python -m datahound.devops.phase5_status` reports `"ok": true` (human-friendly summary)
 
 ## Dashboard data-source checks
 - [ ] Pipeline Monitor loads without errors
