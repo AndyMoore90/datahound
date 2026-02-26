@@ -391,8 +391,8 @@ def load_review_notify_activity(limit: int = 2000) -> pd.DataFrame:
         pass
 
     # JSON fallback from cron log (export/read-model compatibility only).
-    from central_logging.config import cron_monitor_dir
-    path = cron_monitor_dir() / "swarm_auto_merge.jsonl"
+    from central_logging.config import LOG_ROOT
+    path = LOG_ROOT / "cron_monitor" / "swarm_auto_merge.jsonl"
     rows = _read_jsonl(path, limit)
     if not rows:
         return pd.DataFrame(columns=["ts", "source", "task_id", "status"])
