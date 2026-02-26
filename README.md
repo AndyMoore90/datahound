@@ -132,6 +132,11 @@ datahound_pro/
 
 ## Running the App
 
+**Run readiness checks first:**
+```bash
+python -m datahound.preflight
+```
+
 **Start the web interface:**
 ```bash
 streamlit run apps/Home.py
