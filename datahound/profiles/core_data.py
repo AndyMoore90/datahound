@@ -7,8 +7,25 @@ from pathlib import Path
 from typing import Dict, List, Set, Optional, Any, Tuple
 import pandas as pd
 import numpy as np
-from Levenshtein import distance as levenshtein_distance
 import re
+
+try:
+    from Levenshtein import distance as levenshtein_distance
+except ImportError:  # local fallback when python-Levenshtein is unavailable
+    def levenshtein_distance(a: str, b: str) -> int:
+        la, lb = len(a), len(b)
+        if la == 0:
+            return lb
+        if lb == 0:
+            return la
+        prev = list(range(lb + 1))
+        for i, ca in enumerate(a, start=1):
+            curr = [i]
+            for j, cb in enumerate(b, start=1):
+                cost = 0 if ca == cb else 1
+                curr.append(min(curr[-1] + 1, prev[j] + 1, prev[j - 1] + cost))
+            prev = curr
+        return prev[-1]
 
 from .types import ProfileCoreData, ProfileBuildConfig, ProfileBuildResult, ProfileBuildMode
 from ..events.address_utils import normalize_address_street, extract_street_from_full_address
