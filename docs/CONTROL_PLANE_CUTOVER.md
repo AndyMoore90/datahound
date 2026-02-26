@@ -26,6 +26,16 @@ Recommended production default:
 3. Add scheduled reconciliation checks for drift during transition
 4. Enforce idempotency for side-effect logs (review/notification writes) to prevent duplicate control-plane records
 
+## Readiness snapshot
+Before cutover/rollout, run:
+
+```bash
+python -m datahound.devops.control_plane_readiness
+```
+
+- exit `0`: ready for configured mode
+- exit `1`: configuration/repo readiness issue
+
 ## Drift check command
 Use this in cron/CI after DB is enabled:
 
