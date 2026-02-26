@@ -9,6 +9,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from datahound.storage.bootstrap import get_storage_dal_from_env
+from datahound.storage.db.models import EventIndexRecord
 from .types import EventResult, EventSeverity
 
 
@@ -28,6 +30,9 @@ class EventMasterStorage:
         # Logging
         self.log_file = data_dir / "logs" / "event_storage_log.jsonl"
         self.log_file.parent.mkdir(parents=True, exist_ok=True)
+
+        # Optional control-plane DAL (enabled when DATAHOUND_STORAGE_URL is configured)
+        self._storage_dal = get_storage_dal_from_env()
     
     def get_master_file_path(self, event_type: str) -> Path:
         """Get the master parquet file path for an event type"""
@@ -163,6 +168,8 @@ class EventMasterStorage:
                 "total_events": len(combined_df),
                 "file_size_mb": round(master_file.stat().st_size / (1024*1024), 2)
             })
+
+            self._sync_events_index(event_type=event_type, frame=combined_df, source_file=master_file)
             
         except Exception as e:
             self._log_event("error", f"Failed to save {event_type} master file", {
@@ -297,6 +304,103 @@ class EventMasterStorage:
             })
             return 0
     
+    def _sync_events_index(self, *, event_type: str, frame: pd.DataFrame, source_file: Path) -> None:
+        """Best-effort sync of parquet master records into events_index control-plane table."""
+        if self._storage_dal is None:
+            return
+        if frame.empty:
+            return
+        required_cols = {"event_id", "entity_type", "entity_id", "severity"}
+        if not required_cols.issubset(set(frame.columns)):
+            return
+
+        records: List[EventIndexRecord] = []
+        known_event_ids: Set[str] = set()
+        for _, row in frame.iterrows():
+            event_id = str(row.get("event_id", "")).strip()
+            if not event_id:
+                continue
+            known_event_ids.add(event_id)
+            detected_at = self._parse_timestamp(row.get("detected_at")) or datetime.now(UTC)
+            status_value = str(row.get("status", "active") or "active").strip().lower()
+            if status_value not in {"active", "resolved", "archived"}:
+                status_value = "active"
+
+            details = {
+                key: self._coerce_json_value(value)
+                for key, value in row.items()
+                if key
+                not in {
+                    "event_id",
+                    "event_type",
+                    "entity_type",
+                    "entity_id",
+                    "severity",
+                    "status",
+                    "detected_at",
+                    "last_updated",
+                    "scan_timestamp",
+                }
+            }
+
+            records.append(
+                EventIndexRecord(
+                    id=None,
+                    event_id=event_id,
+                    company=self.company,
+                    event_type=str(row.get("event_type", event_type) or event_type),
+                    entity_type=str(row.get("entity_type", "unknown") or "unknown"),
+                    entity_id=str(row.get("entity_id", "unknown") or "unknown"),
+                    severity=str(row.get("severity", "medium") or "medium"),
+                    status=status_value,
+                    first_seen_at=detected_at,
+                    last_seen_at=datetime.now(UTC),
+                    source_file=str(source_file),
+                    details_json=details,
+                )
+            )
+
+        if not records:
+            return
+
+        try:
+            self._storage_dal.upsert_events(records)
+            self._storage_dal.resolve_missing_events(
+                known_event_ids,
+                event_type=event_type,
+                company=self.company,
+            )
+        except Exception as exc:
+            self._log_event("warning", "Failed syncing events_index", {
+                "event_type": event_type,
+                "error": str(exc),
+            })
+
+    @staticmethod
+    def _parse_timestamp(value: Any) -> Optional[datetime]:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value if value.tzinfo else value.replace(tzinfo=UTC)
+        try:
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=UTC)
+        except Exception:
+            return None
+
+    @staticmethod
+    def _coerce_json_value(value: Any) -> Any:
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        if isinstance(value, datetime):
+            return value.isoformat()
+        try:
+            if pd.isna(value):
+                return None
+        except Exception:
+            pass
+        return str(value)
+
     def _generate_event_id(self, event: EventResult) -> str:
         """Generate unique ID for an event"""
         
