@@ -1,12 +1,12 @@
 {
   "company": "McCullough Heating and Air",
-  "data_dir": "data\\McCullough Heating and Air\\downloads",
+  "data_dir": "data/McCullough Heating and Air/downloads",
   "gmail": {
     "scopes": [
       "https://www.googleapis.com/auth/gmail.modify"
     ],
-    "credentials_path": "secrets\\McCullough Heating and Air\\google\\credentials.json",
-    "token_path": "secrets\\McCullough Heating and Air\\google\\gmail_token.json",
+    "credentials_path": "secrets/McCullough Heating and Air/google/credentials.json",
+    "token_path": "secrets/McCullough Heating and Air/google/gmail_token.json",
     "query_by_type": {
       "Estimate_Events": "subject:\"Estimate_Events\" is:unread",
       "Location_Events": "subject:\"Location_Events\" is:unread",
@@ -32,7 +32,7 @@
   },
   "schedules": [],
   "prepare": {
-    "tables_dir": "companies\\McCullough Heating and Air\\tables",
+    "tables_dir": "companies/McCullough Heating and Air/tables",
     "file_type_to_master": {
       "jobs": "Jobs.xlsx",
       "customers": "Customers.xlsx",

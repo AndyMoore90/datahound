@@ -143,6 +143,19 @@ def _load_lead_records(
     if df.empty:
         return df
 
+    # Backward-compatibility for older/partial lead schemas.
+    required_columns = [
+        "customer_phone",
+        "referenced_transcripts",
+        "primary_call_date",
+        "was_customer_call",
+        "was_service_request",
+        "was_booked",
+    ]
+    for col in required_columns:
+        if col not in df.columns:
+            df[col] = None
+
     df["customer_phone"] = df["customer_phone"].astype(str).str.strip()
     df = df[df["customer_phone"].isin(customer_phones)]
     if df.empty:
@@ -195,10 +208,19 @@ def _summarize_classification(grouped: pd.DataFrame, column: str) -> Dict[str, i
     return {"true": int(true_count), "false": int(false_count), "unknown": int(unknown_count)}
 
 
+def _ensure_classification_columns(df: pd.DataFrame) -> pd.DataFrame:
+    required = ["customer_phone", "was_customer_call", "was_service_request", "was_booked"]
+    for col in required:
+        if col not in df.columns:
+            df[col] = None
+    return df
+
+
 def _build_funnel_rows(grouped: pd.DataFrame) -> Dict[str, int]:
-    customer_true = grouped[grouped["was_customer_call"].map(lambda value: value is True)]
-    service_true = customer_true[customer_true["was_service_request"].map(lambda value: value is True)]
-    service_booked = service_true[service_true["was_booked"].map(lambda value: value is True)]
+    grouped = _ensure_classification_columns(grouped.copy())
+    customer_true = grouped.loc[grouped["was_customer_call"].map(lambda value: value is True)]
+    service_true = customer_true.loc[customer_true["was_service_request"].map(lambda value: value is True)]
+    service_booked = service_true.loc[service_true["was_booked"].map(lambda value: value is True)]
     return {
         "customers": int(len(customer_true)),
         "service_requests": int(len(service_true)),
@@ -212,8 +234,8 @@ def _build_timeline(grouped_daily: pd.DataFrame) -> Dict[str, Any]:
     records = []
     for current_date, group in grouped_daily.groupby("primary_call_date_parsed"):
         day_counts = _summarize_classification(group, "was_customer_call")
-        service_counts = _summarize_classification(group[group["was_customer_call"].map(lambda value: value is True)], "was_service_request")
-        booking_counts = _summarize_classification(group[group["was_service_request"].map(lambda value: value is True)], "was_booked")
+        service_counts = _summarize_classification(group.loc[group["was_customer_call"].map(lambda value: value is True)], "was_service_request")
+        booking_counts = _summarize_classification(group.loc[group["was_service_request"].map(lambda value: value is True)], "was_booked")
         not_booked_counts = {
             "true": max(service_counts.get("true", 0) - booking_counts.get("true", 0), 0),
             "false": booking_counts.get("true", 0),
@@ -263,16 +285,16 @@ def compute_transcript_metrics(
         end_date,
     )
 
-    classification_df = _build_customer_classification(leads_df)
+    classification_df = _ensure_classification_columns(_build_customer_classification(leads_df))
 
     customers_summary = _summarize_classification(classification_df, "was_customer_call") if not classification_df.empty else {"true": 0, "false": 0, "unknown": 0}
     service_summary = {"true": 0, "false": 0, "unknown": 0}
     booking_summary = {"true": 0, "false": 0, "unknown": 0}
 
     if not classification_df.empty:
-        customer_subset = classification_df[classification_df["was_customer_call"].map(lambda value: value is True)]
+        customer_subset = classification_df.loc[classification_df["was_customer_call"].map(lambda value: value is True)]
         service_summary = _summarize_classification(customer_subset, "was_service_request")
-        service_subset = customer_subset[customer_subset["was_service_request"].map(lambda value: value is True)]
+        service_subset = customer_subset.loc[customer_subset["was_service_request"].map(lambda value: value is True)]
         booking_summary = _summarize_classification(service_subset, "was_booked")
 
     funnel = _build_funnel_rows(classification_df)

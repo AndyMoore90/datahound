@@ -60,6 +60,11 @@ class PrepareConfig:
     type_rules: Dict[str, PrepareTypeRule] = field(default_factory=dict)
 
 
+def _norm_path(value: str) -> Path:
+    """Normalize config paths so Windows-style separators work on Linux/macOS too."""
+    return Path(str(value).replace("\\", "/"))
+
+
 def load_config(config_path: Path) -> DownloadConfig:
     with open(config_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
@@ -111,11 +116,11 @@ def load_config(config_path: Path) -> DownloadConfig:
 
     return DownloadConfig(
         company=cfg["company"],
-        data_dir=Path(cfg["data_dir"]),
+        data_dir=_norm_path(cfg["data_dir"]),
         gmail=GmailConfig(
             scopes=gmail_cfg["scopes"],
-            credentials_path=Path(gmail_cfg["credentials_path"]),
-            token_path=Path(gmail_cfg["token_path"]),
+            credentials_path=_norm_path(gmail_cfg["credentials_path"]),
+            token_path=_norm_path(gmail_cfg["token_path"]),
             query_by_type=gmail_cfg["query_by_type"],
             link_prefixes=gmail_cfg.get("link_prefixes", []),
         ),
@@ -127,7 +132,7 @@ def load_config(config_path: Path) -> DownloadConfig:
         ),
         schedules=schedules_cfg,
         prepare=PrepareConfig(
-            tables_dir=Path(prepare_cfg.get("tables_dir", str(tables_dir_default))),
+            tables_dir=_norm_path(prepare_cfg.get("tables_dir", str(tables_dir_default))),
             file_type_to_master=prepare_cfg.get("file_type_to_master", default_mapping),
             type_rules=rules,
         ),
@@ -204,7 +209,7 @@ def load_global_config(config_path: Path = Path("config/global.json")) -> Global
             params=s.get("params", {}),
         ))
     return GlobalConfig(
-        permits_data_dir=Path(cfg.get("permits_data_dir", "global_data/permits")),
+        permits_data_dir=_norm_path(cfg.get("permits_data_dir", "global_data/permits")),
         permit=PermitConfig(
             austin_base_url=cfg.get("permit", {}).get("austin_base_url", "https://data.austintexas.gov/resource/3syk-w9eu.csv"),
             default_lookback_hours=int(cfg.get("permit", {}).get("default_lookback_hours", 168)),

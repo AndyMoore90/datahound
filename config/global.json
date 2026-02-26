@@ -1,5 +1,5 @@
 {
-  "permits_data_dir": "global_data\\permits",
+  "permits_data_dir": "global_data/permits",
   "permit": {
     "austin_base_url": "https://data.austintexas.gov/resource/3syk-w9eu.csv",
     "default_lookback_hours": 168
