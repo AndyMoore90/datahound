@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterable, Mapping, Protocol
 
-from ..models import DatasetVersionRecord, PipelineRunRecord, RunManifestEnvelope
+from ..models import DatasetVersionRecord, PipelineRunRecord
 
 
 @dataclass(slots=True)
@@ -25,7 +25,7 @@ class RunRepository(Protocol):
         run_id: str,
         *,
         status: str,
-        output_manifest: RunManifestEnvelope | None,
+        output_manifest: Mapping[str, object] | None,
         error: Mapping[str, object] | None = None,
     ) -> PipelineRunRecord:
         ...
