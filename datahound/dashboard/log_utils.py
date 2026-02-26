@@ -217,6 +217,52 @@ def load_custom_extraction_logs(company: str | None = None, limit: int = 5000) -
     return df
 
 
+def load_pipeline_runs(company: str, limit: int = 2000) -> pd.DataFrame:
+    # DB-first control-plane read when enabled.
+    try:
+        from datahound.storage.control_plane import get_control_plane_source
+        from datahound.storage.bootstrap import get_storage_dal_from_env
+
+        if get_control_plane_source() == "db":
+            dal = get_storage_dal_from_env()
+            repo = dal.dependencies.run_repo if dal is not None else None
+            if repo is not None:
+                runs = [r for r in repo.list_runs() if r.company == company]
+                runs = sorted(runs, key=lambda r: r.started_at, reverse=True)[:limit]
+                rows = [
+                    {
+                        "ts": run.started_at,
+                        "run_id": run.run_id,
+                        "company": run.company,
+                        "pipeline_name": run.pipeline_name,
+                        "stage_name": run.stage,
+                        "status": run.status,
+                        "finished_at": run.finished_at,
+                    }
+                    for run in runs
+                ]
+                if rows:
+                    df = pd.DataFrame(rows)
+                    df = _normalize_timestamps(df, "ts")
+                    df = _normalize_timestamps(df, "finished_at")
+                    df["stage"] = "pipeline_runs"
+                    return df
+    except Exception:
+        pass
+
+    from central_logging.config import pipeline_dir
+    path = pipeline_dir(company) / "pipeline_runs.jsonl"
+    rows = _read_jsonl(path, limit)
+    if not rows:
+        return pd.DataFrame(columns=["run_id", "company", "pipeline_name", "status", "started_at", "finished_at"])
+    df = pd.DataFrame(rows)
+    df = _normalize_timestamps(df, "started_at")
+    df.rename(columns={"started_at": "ts"}, inplace=True)
+    df = _normalize_timestamps(df, "finished_at")
+    df["stage"] = "pipeline_runs"
+    return df
+
+
 def load_scheduler_history(limit: int = 5000) -> pd.DataFrame:
     # DB-first control-plane read when enabled.
     try:
@@ -279,6 +325,7 @@ def load_dashboard_data(company: str, limit: int = 5000) -> Dict[str, pd.DataFra
     data["historical_scan"] = load_historical_scan_logs(company, limit)
     data["recent_events"] = load_recent_event_changes(company)
     data["custom_extraction"] = load_custom_extraction_logs(company, limit)
+    data["pipeline_runs"] = load_pipeline_runs(company, limit)
     data["scheduler"] = load_scheduler_history(limit)
 
     # Add change logs per entity
