@@ -15,6 +15,7 @@ ROOT = _P(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 from apps._shared import ensure_root_on_path
+from apps.streamlit_compat import call_compat
 
 ensure_root_on_path()
 
@@ -327,7 +328,7 @@ def main() -> None:
             save_backups = True
         
         # Download button
-        if st.button("🚀 Download Permits", type="primary", width='stretch'):
+        if call_compat(st.button, "🚀 Download Permits", type="primary", use_container_width=True):
             with st.spinner("Downloading permits..."):
                 try:
                     fname = download_austin_permits("GLOBAL", permits_dir, gcfg.permit.austin_base_url, start_dt, end_dt)
@@ -524,7 +525,7 @@ def main() -> None:
                 
                 # Show recent data
                 st.markdown("**Recent Records Preview**")
-                st.dataframe(df.head(100), width='stretch')
+                call_compat(st.dataframe, df.head(100), use_container_width=True)
                 
                 # Export and conversion options
                 col_export1, col_export2 = st.columns(2)

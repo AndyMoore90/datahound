@@ -126,7 +126,7 @@ def show_configuration_interface(engine: CustomExtractionEngine):
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if st.button("🔄 Reset to Defaults", width='stretch'):
+        if st.button("🔄 Reset to Defaults", use_container_width=True):
             st.session_state.extraction_configs = templates
             # Clear session state to force reload
             if 'extraction_engine' in st.session_state:
@@ -134,7 +134,7 @@ def show_configuration_interface(engine: CustomExtractionEngine):
             st.rerun()
     
     with col2:
-        if st.button("➕ Add Custom Rule", width='stretch'):
+        if st.button("➕ Add Custom Rule", use_container_width=True):
             # Add a blank configuration
             new_config = ExtractionConfig(
                 name="Custom Extraction",
@@ -160,7 +160,7 @@ def show_configuration_interface(engine: CustomExtractionEngine):
             st.rerun()
     
     with col3:
-        if st.button("💾 Save Configuration", width='stretch'):
+        if st.button("💾 Save Configuration", use_container_width=True):
             try:
                 save_extraction_configuration(engine.company, configs)
                 st.success("✅ Configuration saved successfully!")
@@ -169,7 +169,7 @@ def show_configuration_interface(engine: CustomExtractionEngine):
                 st.error(f"❌ Error saving configuration: {e}")
     
     with col4:
-        if st.button("🔄 Reload Configuration", width='stretch'):
+        if st.button("🔄 Reload Configuration", use_container_width=True):
             try:
                 loaded_configs = load_extraction_configuration(engine.company)
                 if loaded_configs:
@@ -528,13 +528,13 @@ def show_execution_interface(engine: CustomExtractionEngine, company: str):
         )
     
     with col2:
-        if st.button("▶️ Execute Selected", width='stretch', disabled=execute_single == "Select a rule..."):
+        if st.button("▶️ Execute Selected", use_container_width=True, disabled=execute_single == "Select a rule..."):
             selected_config = next((c for c in enabled_configs if c.name == execute_single), None)
             if selected_config:
                 execute_single_extraction(engine, selected_config)
     
     with col3:
-        if st.button("🚀 Execute All Enabled", width='stretch', type="primary"):
+        if st.button("🚀 Execute All Enabled", use_container_width=True, type="primary"):
             execute_batch_extractions(engine, enabled_configs, company)
     
     # Automation section
@@ -727,14 +727,14 @@ def show_results_interface(engine: CustomExtractionEngine, company: str):
                         "Unique Values": unique_count,
                     })
                 col_df = pd.DataFrame(col_info)
-                st.dataframe(col_df, width='stretch')
+                st.dataframe(col_df, use_container_width=True)
             
             st.markdown("**Sample Data (First 10 Rows)**")
             display_df = df.head(10).copy()
             for col in display_df.columns:
                 if display_df[col].apply(lambda v: isinstance(v, (list, dict))).any():
                     display_df[col] = display_df[col].astype(str)
-            st.dataframe(display_df, width='stretch')
+            st.dataframe(display_df, use_container_width=True)
 
             safe_df = df.copy()
             for col in safe_df.columns:
@@ -746,7 +746,7 @@ def show_results_interface(engine: CustomExtractionEngine, company: str):
                 data=csv_data,
                 file_name=selected_file.replace('.parquet', '.csv'),
                 mime='text/csv',
-                width='stretch'
+                use_container_width=True
             )
             
         except Exception as e:

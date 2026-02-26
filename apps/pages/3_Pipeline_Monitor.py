@@ -25,6 +25,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from apps._shared import select_company_config  # type: ignore
+from apps.streamlit_compat import call_compat  # type: ignore
 from datahound.dashboard import (  # type: ignore
     clear_logs,
     clear_cache,
@@ -250,7 +251,7 @@ def _render_data_table(df: pd.DataFrame, title: str, columns: List[str]):
     if UI_COMPONENTS_AVAILABLE:
         dh_data_table(display_df, title=title, searchable=True)
     else:
-        st.dataframe(display_df, width='stretch')
+        call_compat(st.dataframe, display_df, use_container_width=True)
 
 
 def _prepare_transcript_cards(metrics: Dict[str, Any]) -> List[Dict[str, str]]:
@@ -344,7 +345,7 @@ def _render_transcript_metrics(metrics: Optional[Dict[str, Any]]):
                 )
             )
             funnel_fig.update_layout(height=350, title="Conversion Funnel")
-            st.plotly_chart(funnel_fig, width='stretch')
+            call_compat(st.plotly_chart, funnel_fig, use_container_width=True)
         else:
             st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
 
@@ -366,10 +367,10 @@ def _render_transcript_metrics(metrics: Optional[Dict[str, Any]]):
         
         if PLOTLY_AVAILABLE and px:
             timeline_fig = px.line(melted, x="date", y="count", color="stage", title="Daily Transcript Outcomes")
-            st.plotly_chart(timeline_fig, width='stretch')
+            call_compat(st.plotly_chart, timeline_fig, use_container_width=True)
         else:
             st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
-            st.dataframe(melted, width='stretch')
+            call_compat(st.dataframe, melted, use_container_width=True)
 
     customer_details = metrics.get("customer_details", [])
     if customer_details:
@@ -423,8 +424,8 @@ def main():
     )
     cutoff_date = st.sidebar.date_input("Cut-off date")
     cutoff_time = st.sidebar.time_input("Cut-off time")
-    flush_clicked = st.sidebar.button("Flush logs", width='stretch')
-    refresh_clicked = st.sidebar.button("Refresh dashboard data", width='stretch')
+    flush_clicked = call_compat(st.sidebar.button, "Flush logs", use_container_width=True)
+    refresh_clicked = call_compat(st.sidebar.button, "Refresh dashboard data", use_container_width=True)
     if flush_clicked:
         cutoff_dt = datetime.combine(cutoff_date, cutoff_time)
         direction = "after" if cutoff_mode == "older" else "before"
@@ -455,7 +456,7 @@ def main():
         else None
     )
     backfill_enabled = st.sidebar.checkbox("Backfill processed customers", value=False, disabled=not BACKFILL_AVAILABLE)
-    transcript_refresh = st.sidebar.button("Refresh transcript stats", width='stretch')
+    transcript_refresh = call_compat(st.sidebar.button, "Refresh transcript stats", use_container_width=True)
 
     data = _load_data(company)
     transcript_metrics: Optional[Dict] = None
@@ -512,7 +513,7 @@ def main():
     _render_section_header("Pipeline Activity", "Timeline of recent stage executions")
     timeline_fig = _timeline_chart(combined_df, "Pipeline Stage Timeline")
     if timeline_fig:
-        st.plotly_chart(timeline_fig, width='stretch')
+        call_compat(st.plotly_chart, timeline_fig, use_container_width=True)
     else:
         st.info("No timeline data available yet.")
 
@@ -521,7 +522,7 @@ def main():
     _render_section_header("Volume Trends", "Daily volume by stage")
     volume_fig = _pipeline_volume_chart(combined_df)
     if volume_fig:
-        st.plotly_chart(volume_fig, width='stretch')
+        call_compat(st.plotly_chart, volume_fig, use_container_width=True)
     else:
         st.info("No volume data available yet.")
 

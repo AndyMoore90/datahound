@@ -302,10 +302,10 @@ def show_business_analytics(parquet_dir: Path, metrics: Dict[str, Any]):
                     color_discrete_sequence=px.colors.qualitative.Set3
                 )
                 fig.update_layout(height=400)
-                st.plotly_chart(fig, width='stretch')
+                st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
-                st.dataframe(tier_data.to_frame(name='Count'), width='stretch')
+                st.dataframe(tier_data.to_frame(name='Count'), use_container_width=True)
         
         # Service activity analysis
         if all(col in profiles_df.columns for col in ['job_count', 'estimate_count', 'invoice_count']):
@@ -329,10 +329,10 @@ def show_business_analytics(parquet_dir: Path, metrics: Dict[str, Any]):
                         color_discrete_sequence=['#2E86AB']
                     )
                     fig.update_layout(height=300)
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.markdown("**Service Activity Overview**")
-                    st.dataframe(pd.DataFrame.from_dict(service_totals, orient='index', columns=['Count']), width='stretch')
+                    st.dataframe(pd.DataFrame.from_dict(service_totals, orient='index', columns=['Count']), use_container_width=True)
             
             with col2:
                 # Customer engagement levels
@@ -360,10 +360,10 @@ def show_business_analytics(parquet_dir: Path, metrics: Dict[str, Any]):
                         color_discrete_sequence=px.colors.qualitative.Pastel
                     )
                     fig.update_layout(height=300)
-                    st.plotly_chart(fig, width='stretch')
+                    st.plotly_chart(fig, use_container_width=True)
                 else:
                     st.markdown("**Customer Engagement Levels**")
-                    st.dataframe(engagement_counts.to_frame(name='Count'), width='stretch')
+                    st.dataframe(engagement_counts.to_frame(name='Count'), use_container_width=True)
         
     except Exception as e:
         st.error(f"Error loading analytics: {e}")
@@ -464,16 +464,16 @@ def show_quick_actions(company: str):
     
     st.markdown("### 🚀 Quick Actions")
     
-    if st.button("⚡ Run Event Detection", width='stretch'):
+    if st.button("⚡ Run Event Detection", use_container_width=True):
         st.success("Use Event Configs to run historical scans")
     
     # System maintenance actions
     st.markdown("#### 🔧 System Maintenance")
     
-    if st.button("🔄 Refresh Data Cache", width='stretch'):
+    if st.button("🔄 Refresh Data Cache", use_container_width=True):
         st.info("Data cache refresh initiated")
     
-    if st.button("📋 View System Logs", width='stretch'):
+    if st.button("📋 View System Logs", use_container_width=True):
         st.info("Navigate to Logs page for detailed system logs")
 
 

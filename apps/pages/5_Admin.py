@@ -18,6 +18,7 @@ from apps._shared import (
     ensure_root_on_path, select_company_config, list_companies,
     get_config_path, read_jsonl, load_all_changes,
 )
+from apps.streamlit_compat import call_compat
 
 ensure_root_on_path()
 
@@ -57,7 +58,13 @@ def _render_companies() -> None:
         token_path_str = st.text_input("Token path", value=str(cfg.gmail.token_path))
         links_str = st.text_area("Link prefixes (one per line)", value="\n".join(cfg.gmail.link_prefixes))
         rows = [{"file_type": k, "query": v} for k, v in cfg.gmail.query_by_type.items()]
-        edited_rows = st.data_editor(rows, num_rows="dynamic", width="stretch", key="admin_queries_editor")
+        edited_rows = call_compat(
+            st.data_editor,
+            rows,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="admin_queries_editor",
+        )
 
         col_a, col_b = st.columns(2)
         with col_a:
@@ -227,7 +234,7 @@ def _render_import(company: str) -> None:
                 results.append({"file": up.name, "status": f"error: {e}"})
         if results:
             st.success("Uploaded and converted files")
-            st.dataframe(results, width="stretch")
+            call_compat(st.dataframe, results, use_container_width=True)
 
 
 # ---------------------------------------------------------------------------
@@ -249,7 +256,7 @@ def _render_logs(company: str, cfg) -> None:
         c1.metric("Total Changes", total)
         c2.metric("Updates", updates)
         c3.metric("Inserts", inserts)
-        st.dataframe(changes_df.tail(500), width="stretch")
+        call_compat(st.dataframe, changes_df.tail(500), use_container_width=True)
     else:
         st.info("No change logs found.")
 
@@ -258,7 +265,7 @@ def _render_logs(company: str, cfg) -> None:
     entries = read_jsonl(log_path, int(limit)) or read_jsonl(logs_dir_alt / "download_log.jsonl", int(limit))
     if entries:
         st.write(f"{len(entries)} entries")
-        st.dataframe(entries[-100:], width="stretch")
+        call_compat(st.dataframe, entries[-100:], use_container_width=True)
     else:
         st.info("No download log entries.")
 

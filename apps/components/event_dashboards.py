@@ -518,7 +518,7 @@ def _render_chart_and_table(
             .resolve_scale(y="independent")
             .properties(title=f"{meta['title']} Detection & Conversion by {plabel}", height=500)
         )
-        st.altair_chart(chart, width="stretch")
+        st.altair_chart(chart, use_container_width=True)
 
     st.markdown(
         f"<div style='text-align:center; color:#888; font-size:0.85em; margin-top:-10px; margin-bottom:16px'>"
@@ -530,7 +530,7 @@ def _render_chart_and_table(
     )
 
     st.dataframe(
-        perf, width="stretch",
+        perf, use_container_width=True,
         column_config={
             "period": st.column_config.TextColumn(plabel),
             "total_detected": st.column_config.NumberColumn(det_label),

@@ -2023,7 +2023,7 @@ OUTPUT = lost customers with competitor details
             written.append(out.name)
             _log("write_complete", {"rows_written": int(len(events)), "output_file": str(out)})
             st.success(f"Overdue maintenance events: {len(events)}")
-            st.dataframe(events.head(100), width='stretch')
+            st.dataframe(events.head(100), use_container_width=True)
             ui_log(f"[overdue_maintenance] Wrote output {out.name} rows={len(events)}")
           else:
             st.info("No overdue maintenance events found.")
@@ -2194,7 +2194,7 @@ OUTPUT = lost customers with competitor details
             written.append(out.name)
             _log_cj("write_complete", {"rows_written": int(len(events)), "output_file": str(out)})
             st.success(f"Canceled jobs events: {len(events)}")
-            st.dataframe(events.head(100), width='stretch')
+            st.dataframe(events.head(100), use_container_width=True)
             ui_log(f"[canceled_jobs] Wrote output {out.name} rows={len(events)}")
           else:
             st.info("No canceled jobs found.")
@@ -2385,7 +2385,7 @@ OUTPUT = lost customers with competitor details
             written.append(out.name)
             _log_ue("write_complete", {"rows_written": int(len(events)), "output_file": str(out)})
             st.success(f"Unsold estimates events: {len(events)}")
-            st.dataframe(events.head(100), width='stretch')
+            st.dataframe(events.head(100), use_container_width=True)
             ui_log(f"[unsold_estimates] Wrote output {out.name} rows={len(events)}")
           else:
             st.info("No unsold estimates found.")
@@ -2495,7 +2495,7 @@ OUTPUT = lost customers with competitor details
           written.append(out.name)
           _log_as("write_complete", {"rows_written": int(len(events)), "output_file": str(out)})
           st.success(f"Aging systems: wrote {len(events)} locations")
-          st.dataframe(events.head(100), width='stretch')
+          st.dataframe(events.head(100), use_container_width=True)
           # Analysis step
           mode = (cfg.get("analysis_mode") or "basic").lower()
           hist_parquet = out
@@ -2547,7 +2547,7 @@ OUTPUT = lost customers with competitor details
               written.append(out_path.name)
               _log_as("analysis_write_complete", {"rows_written": int(len(age_df)), "output_file": str(out_path)})
               st.success(f"Aging systems (basic analysis): wrote {len(age_df)} rows")
-              st.dataframe(age_df.head(100), width='stretch')
+              st.dataframe(age_df.head(100), use_container_width=True)
             else:
               # Build per-location ordered job histories (in-memory) and write permit history parquet only
               _log_as("analysis_start", {"mode": mode, "input_file": str(hist_parquet)})
@@ -3091,7 +3091,7 @@ OUTPUT = lost customers with competitor details
                             })
                             ui_log(f"[aging_systems] LLM analysis complete: {successful_llm}/{len(requests)} successful")
                             st.success(f"LLM Analysis: {successful_llm}/{len(requests)} locations analyzed")
-                            st.dataframe(df_llm_results.head(100), width='stretch')
+                            st.dataframe(df_llm_results.head(100), use_container_width=True)
                           else:
                             ui_log(f"[aging_systems] No successful LLM results to save")
                       else:
@@ -3257,7 +3257,7 @@ OUTPUT = lost customers with competitor details
           st.success(f"Lost customers: analyzed {contacts_processed} customers, found {len(events)} lost customers")
           
           if len(events) > 0:
-            st.dataframe(events.head(100), width='stretch')
+            st.dataframe(events.head(100), use_container_width=True)
           else:
             st.info("No lost customers found based on current criteria.")
         

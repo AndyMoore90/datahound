@@ -1,9 +1,12 @@
 """Enhanced fuzzy address matching logic from legacy code"""
 
 import re
+import logging
 from typing import Dict, List, Optional, Tuple, Set, Callable
 from collections import defaultdict
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 try:
     import rapidfuzz.fuzz as rf_fuzz
@@ -11,7 +14,19 @@ try:
     FUZZY_AVAILABLE = True
 except ImportError:
     FUZZY_AVAILABLE = False
-    print("Warning: rapidfuzz not available. Install with: pip install rapidfuzz")
+
+_RAPIDFUZZ_WARNED = False
+
+
+def _warn_rapidfuzz_once() -> None:
+    global _RAPIDFUZZ_WARNED
+    if _RAPIDFUZZ_WARNED:
+        return
+    _RAPIDFUZZ_WARNED = True
+    logger.warning(
+        "rapidfuzz is not installed; fuzzy permit matching is disabled and simple matching will be used. "
+        "Optional install: pip install rapidfuzz"
+    )
 
 from .address_utils import (
     normalize_address_street, 
@@ -27,6 +42,7 @@ def build_enhanced_permit_index(permit_data: pd.DataFrame, max_edits: int = 2) -
     """Build comprehensive permit index for fast fuzzy matching"""
     
     if not FUZZY_AVAILABLE:
+        _warn_rapidfuzz_once()
         return {}, {}, {}, {}
     
     col_map = {col.lower(): col for col in permit_data.columns}
@@ -114,6 +130,7 @@ def enhanced_address_match(location_address: str, exact_map: Dict, exact_count_m
     """Perform enhanced fuzzy address matching using legacy logic"""
     
     if not FUZZY_AVAILABLE:
+        _warn_rapidfuzz_once()
         return {"match_type": "NO_MATCH", "score": 0.0, "matched_permits": []}
     
     # Normalize location address (extract street first)
@@ -282,7 +299,7 @@ def enhanced_location_permit_matching(locations_df: pd.DataFrame, permit_data: p
     """Enhanced location-to-permit matching using full legacy logic"""
     
     if not FUZZY_AVAILABLE:
-        print("Warning: rapidfuzz not available. Using simple matching only.")
+        _warn_rapidfuzz_once()
         return []
     
     # Build comprehensive permit index

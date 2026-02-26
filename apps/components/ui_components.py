@@ -203,7 +203,7 @@ def dh_data_table(df: pd.DataFrame, title: str = "", searchable: bool = True,
         if selectable:
             selected = st.dataframe(
                 df,
-                width='stretch',
+                use_container_width=True,
                 height=min(400, (len(df) + 1) * 35),
                 on_select="rerun",
                 selection_mode="single-row"
@@ -212,7 +212,7 @@ def dh_data_table(df: pd.DataFrame, title: str = "", searchable: bool = True,
         else:
             st.dataframe(
                 df,
-                width='stretch',
+                use_container_width=True,
                 height=min(400, (len(df) + 1) * 35)
             )
     else:
@@ -242,7 +242,7 @@ def dh_chart_card(chart_func, title: str, subtitle: str = ""):
         
         chart = chart_func()
         if chart:
-            st.plotly_chart(chart, width='stretch')
+            st.plotly_chart(chart, use_container_width=True)
 
 
 def dh_professional_metric_grid(metrics: List[Dict]):

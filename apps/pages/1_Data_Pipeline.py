@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from apps._shared import ensure_root_on_path, select_company_config, get_config_path
+from apps.streamlit_compat import call_compat
 
 ensure_root_on_path()
 
@@ -181,7 +182,7 @@ def _render_prepare(company: str, cfg) -> None:
                     "status": status,
                     "issues": "; ".join([f"{i.kind}: {i.detail}" for i in issues]),
                 })
-            st.dataframe(rows, width="stretch")
+            call_compat(st.dataframe, rows, use_container_width=True)
             st.success("Validation complete")
         except Exception as e:
             st.error(str(e))
@@ -200,7 +201,7 @@ def _render_prepare(company: str, cfg) -> None:
                         df = pd.read_csv(newest)
                     else:
                         df = pd.read_excel(newest)
-                    st.dataframe(df.head(20), width="stretch")
+                    call_compat(st.dataframe, df.head(20), use_container_width=True)
             except Exception as e:
                 st.error(str(e))
 

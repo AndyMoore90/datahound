@@ -388,7 +388,7 @@ def show_update_master_data_interface(company: str, config: Dict[str, Any]):
                     "Path": str(file_path)
                 })
         
-        st.dataframe(file_info, width='stretch')
+        st.dataframe(file_info, use_container_width=True)
         
         # Show sample data
         if st.checkbox("Show sample data from prepared files"):
@@ -398,7 +398,7 @@ def show_update_master_data_interface(company: str, config: Dict[str, Any]):
                     file_path = prepared_files[selected_type]
                     df = pd.read_parquet(file_path)
                     st.markdown(f"**Sample data from {selected_type}:**")
-                    st.dataframe(df.head(5), width='stretch')
+                    st.dataframe(df.head(5), use_container_width=True)
                 except Exception as e:
                     st.error(f"Error reading {selected_type}: {e}")
         
@@ -447,7 +447,7 @@ def show_update_master_data_interface(company: str, config: Dict[str, Any]):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("📊 Update Master Data", type="primary", width='stretch'):
+        if st.button("📊 Update Master Data", type="primary", use_container_width=True):
             run_master_data_update(
                 company=company,
                 config=config,
@@ -460,11 +460,11 @@ def show_update_master_data_interface(company: str, config: Dict[str, Any]):
             )
     
     with col2:
-        if st.button("📊 Preview Changes Only", width='stretch'):
+        if st.button("📊 Preview Changes Only", use_container_width=True):
             preview_changes(prepared_files, parquet_dir, config)
     
     with col3:
-        if st.button("📋 View Processing Logs", width='stretch'):
+        if st.button("📋 View Processing Logs", use_container_width=True):
             show_processing_logs(data_dir)
     
     # Additional utility buttons
@@ -473,15 +473,15 @@ def show_update_master_data_interface(company: str, config: Dict[str, Any]):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        if st.button("📅 Master Data Date Format", width='stretch', help="Standardize all date columns in master files to ISO format (excludes time-only columns)"):
+        if st.button("📅 Master Data Date Format", use_container_width=True, help="Standardize all date columns in master files to ISO format (excludes time-only columns)"):
             standardize_master_date_formats(parquet_dir, data_dir)
     
     with col2:
-        if st.button("🕐 Restore Time Columns", width='stretch', help="Restore time-only columns from backups (fixes corrupted Call Time, etc.)"):
+        if st.button("🕐 Restore Time Columns", use_container_width=True, help="Restore time-only columns from backups (fixes corrupted Call Time, etc.)"):
             restore_time_columns_from_backups(parquet_dir, data_dir)
     
     with col3:
-        st.button("📊 Data Quality Check", disabled=True, width='stretch', help="Data quality analysis coming soon")
+        st.button("📊 Data Quality Check", disabled=True, use_container_width=True, help="Data quality analysis coming soon")
     
     # Show recent activity
     show_recent_upsert_activity(data_dir)
@@ -633,7 +633,7 @@ def run_master_data_update(company: str, config: Dict[str, Any], prepared_files:
                         "Percentage": f"{(duration_sec / result.total_duration_seconds) * 100:.1f}%"
                     })
                 
-                st.dataframe(phase_data, width='stretch')
+                st.dataframe(phase_data, use_container_width=True)
             
             # File processing results
             if result.upsert_results:
@@ -648,7 +648,7 @@ def run_master_data_update(company: str, config: Dict[str, Any], prepared_files:
                         "Changes": f"{len(upsert_result.audit_changes):,}"
                     })
                 
-                st.dataframe(upsert_data, width='stretch')
+                st.dataframe(upsert_data, use_container_width=True)
             
             # Errors and warnings
             if result.errors:
@@ -798,7 +798,7 @@ def preview_changes(prepared_files: Dict[str, Path], parquet_dir: Path, config: 
                 "Skip": True
             })
     
-    st.dataframe(preview_data, width='stretch')
+    st.dataframe(preview_data, use_container_width=True)
     
     # Summary
     total_new = sum(row["New"] for row in preview_data if isinstance(row["New"], int))
@@ -1065,7 +1065,7 @@ def debug_file_changes(prepared_file: Path, parquet_dir: Path, file_type: str):
                             continue
                 
                 if changes_found:
-                    st.dataframe(pd.DataFrame(changes_found), width='stretch')
+                    st.dataframe(pd.DataFrame(changes_found), use_container_width=True)
                 else:
                     st.success(f"No changes found for this {file_type} record")
                 
@@ -1121,7 +1121,7 @@ def debug_file_changes(prepared_file: Path, parquet_dir: Path, file_type: str):
                     "Percentage": f"{(count/len(merged)*100):.1f}%"
                 })
             
-            st.dataframe(pd.DataFrame(change_summary), width='stretch')
+            st.dataframe(pd.DataFrame(change_summary), use_container_width=True)
             
             # Special debugging for date columns showing changes
             for col, count in sorted_changes[:3]:  # Top 3 problematic columns
@@ -1216,7 +1216,7 @@ def debug_date_column_differences(merged: pd.DataFrame, col: str, id_col: str):
                 continue
         
         if sample_data:
-            st.dataframe(pd.DataFrame(sample_data), width='stretch')
+            st.dataframe(pd.DataFrame(sample_data), use_container_width=True)
         
         # Analyze patterns
         st.markdown("**Pattern Analysis:**")
@@ -1370,7 +1370,7 @@ def standardize_master_date_formats(parquet_dir: Path, data_dir: Path):
             
             if results:
                 results_df = pd.DataFrame(results)
-                st.dataframe(results_df, width='stretch')
+                st.dataframe(results_df, use_container_width=True)
                 
                 # Summary metrics
                 total_updated = sum(r.get("Values Updated", 0) for r in results)
@@ -1518,7 +1518,7 @@ def restore_time_columns_from_backups(parquet_dir: Path, data_dir: Path):
             
             if results:
                 results_df = pd.DataFrame(results)
-                st.dataframe(results_df, width='stretch')
+                st.dataframe(results_df, use_container_width=True)
                 
                 # Summary
                 total_restored = sum(r.get("Time Columns Restored", 0) for r in results)
