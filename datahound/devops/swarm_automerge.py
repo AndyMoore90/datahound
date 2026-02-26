@@ -19,6 +19,8 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 import requests
 
 from central_logging import writer as log_writer
+from datahound.storage.bootstrap import get_storage_dal_from_env
+from datahound.storage.db.models import NotificationRecord, ReviewGateRecord
 
 LOG = logging.getLogger("swarm-automerge")
 API_BASE = "https://api.github.com"
@@ -212,6 +214,63 @@ class CronMonitorLogger:
             LOG.debug("Unable to persist cron monitor log: %s", exc)
 
 
+class ControlPlaneSync:
+    """Best-effort DB sync for review gate + notification records."""
+
+    def __init__(self) -> None:
+        self._dal = get_storage_dal_from_env()
+
+    def upsert_review_gate(self, pr: Dict[str, Any], *, ready: bool, reason: str) -> None:
+        if self._dal is None:
+            return
+        try:
+            labels = {label.get("name", "").lower() for label in pr.get("labels", [])}
+            record = ReviewGateRecord(
+                id=None,
+                task_id=f"pr:{pr.get('number')}",
+                pr_number=pr.get("number"),
+                repo=(pr.get("base", {}).get("repo", {}) or {}).get("full_name") or "unknown/unknown",
+                branch=pr.get("head", {}).get("ref") or "unknown",
+                ci_passed=True if ready else None,
+                codex_passed=True if ready else None,
+                claude_passed=True if ready else None,
+                gemini_passed=None,
+                branch_up_to_date=(pr.get("mergeable_state") == "clean") if pr.get("mergeable_state") else None,
+                screenshots_included=("screenshots-included" in labels) if labels else None,
+                mode="strict",
+                ready=ready,
+                updated_at=datetime.now(timezone.utc),
+            )
+            self._dal.upsert_review_gate(record)
+            self._dal.mark_review_ready(record.task_id, ready=ready)
+        except Exception as exc:
+            LOG.debug("Control-plane review sync skipped: %s", exc)
+
+    def record_notification(self, pr: Dict[str, Any], *, event: str, message: str, sent: bool) -> None:
+        if self._dal is None:
+            return
+        try:
+            record = NotificationRecord(
+                id=None,
+                task_id=f"pr:{pr.get('number')}",
+                channel="telegram",
+                target=os.environ.get("TELEGRAM_CHAT_ID", "unknown"),
+                message_type="ready" if event == "auto-merged" else "info",
+                payload_json={
+                    "event": event,
+                    "message": message,
+                    "pr_number": pr.get("number"),
+                    "branch": pr.get("head", {}).get("ref"),
+                },
+                sent_at=datetime.now(timezone.utc) if sent else None,
+                status="sent" if sent else "failed",
+                provider_message_id=None,
+            )
+            self._dal.record_notification(record)
+        except Exception as exc:
+            LOG.debug("Control-plane notification sync skipped: %s", exc)
+
+
 def detect_repo() -> Tuple[str, str]:
     try:
         remote = subprocess.check_output(["git", "config", "--get", "remote.origin.url"], text=True).strip()
@@ -261,6 +320,7 @@ class AutoMergeWorker:
         self.logger = logger
         self.notifier = notifier
         self.dry_run = dry_run
+        self.control_plane = ControlPlaneSync()
 
     def run(self, max_candidates: Optional[int] = None) -> Dict[str, Any]:
         merged: List[int] = []
@@ -287,6 +347,7 @@ class AutoMergeWorker:
             allowed, reason, is_critical = self.policy.is_candidate(pr)
             if not allowed:
                 skipped.append((number, reason))
+                self.control_plane.upsert_review_gate(pr, ready=False, reason=reason)
                 if is_critical:
                     critical_skips.append((number, reason))
                     self._notify("skipped-critical", pr, reason)
@@ -295,16 +356,20 @@ class AutoMergeWorker:
             updated_at = parse_dt(updated_at_str) if updated_at_str else datetime.now(timezone.utc)
             if self.policy.is_too_old(updated_at):
                 skipped.append((number, "stale"))
+                self.control_plane.upsert_review_gate(pr, ready=False, reason="stale")
                 continue
             ready, check_reason = self._checks_pass(pr)
             if not ready:
                 skipped.append((number, check_reason or "checks"))
+                self.control_plane.upsert_review_gate(pr, ready=False, reason=check_reason or "checks")
                 continue
+            self.control_plane.upsert_review_gate(pr, ready=True, reason="checks-passed")
             if max_candidates and len(merged) >= max_candidates:
                 break
             if self.dry_run:
                 LOG.info("DRY-RUN would merge #%s %s", number, pr.get("title"))
                 self.logger.write("dry-run", pr, "Auto-merge dry-run")
+                self.control_plane.upsert_review_gate(pr, ready=True, reason="dry-run")
                 merged.append(number)
                 continue
             try:
@@ -376,7 +441,13 @@ class AutoMergeWorker:
         number = pr.get("number")
         branch = pr.get("head", {}).get("ref")
         message = f"[{JOB_NAME}] {event} PR #{number} ({branch}) - {title}\nReason: {reason}"
-        self.notifier.notify(event, message)
+
+        sent = False
+        try:
+            self.notifier.notify(event, message)
+            sent = True
+        finally:
+            self.control_plane.record_notification(pr, event=event, message=message, sent=sent)
 
 
 def parse_args(argv: Sequence[str]) -> argparse.Namespace:
