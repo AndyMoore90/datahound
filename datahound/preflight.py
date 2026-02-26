@@ -68,8 +68,9 @@ def _find_deepseek_key() -> Tuple[Optional[str], Optional[str]]:
 
 def check_required_env() -> List[CheckResult]:
     results: List[CheckResult] = []
+    env_file = _load_env_file()
 
-    creds_env = os.getenv("GOOGLE_CREDS")
+    creds_env = os.getenv("GOOGLE_CREDS") or env_file.get("GOOGLE_CREDS")
     if not creds_env:
         results.append(
             CheckResult(
@@ -100,6 +101,8 @@ def check_required_env() -> List[CheckResult]:
     sheet_id = (
         os.getenv("SECOND_CHANCE_SHEET_ID")
         or os.getenv("RECENT_SECOND_CHANCE_LEADS_SHEET_ID")
+        or env_file.get("SECOND_CHANCE_SHEET_ID")
+        or env_file.get("RECENT_SECOND_CHANCE_LEADS_SHEET_ID")
     )
     if sheet_id:
         results.append(
