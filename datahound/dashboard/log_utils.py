@@ -188,6 +188,46 @@ def load_historical_scan_logs(company: str, limit: int = 5000) -> pd.DataFrame:
 
 
 def load_recent_event_changes(company: str) -> pd.DataFrame:
+    # DB-first: summarize active/resolved events from events_index when control-plane source is DB.
+    try:
+        from datahound.storage.control_plane import get_control_plane_source
+        from datahound.storage.bootstrap import get_storage_dal_from_env
+
+        if get_control_plane_source() == "db":
+            dal = get_storage_dal_from_env()
+            repo = dal.dependencies.event_repo if dal is not None else None
+            if repo is not None:
+                # Use resolve_missing_events with no-op known list is not suitable for reads; pull directly from repo impl if available.
+                # Fallback-safe: derive from upsert-capable repo by querying known records via private method if present.
+                if hasattr(repo, "_query"):
+                    # SQL repo path
+                    from sqlalchemy import select
+                    from datahound.storage.db.models import EventIndexModel
+                    from datahound.storage.db.engine import session_scope
+
+                    rows = []
+                    with session_scope(repo._session_factory) as session:  # type: ignore[attr-defined]
+                        models = session.execute(
+                            select(EventIndexModel).where(EventIndexModel.company == company)
+                        ).scalars().all()
+                        for m in models:
+                            rows.append(
+                                {
+                                    "ts": m.last_seen_at,
+                                    "event": m.event_type,
+                                    "entity_id": m.entity_id,
+                                    "status": m.status,
+                                    "severity": m.severity,
+                                }
+                            )
+                    if rows:
+                        df = pd.DataFrame(rows)
+                        df = _normalize_timestamps(df, "ts")
+                        df["stage"] = "recent_events"
+                        return df
+    except Exception:
+        pass
+
     path = _path(company, "recent_event_changes.json")
     if not path.exists():
         return pd.DataFrame(columns=["timestamp", "event", "added_rows"])
