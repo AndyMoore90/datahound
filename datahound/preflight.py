@@ -204,6 +204,56 @@ def check_gmail_files() -> List[CheckResult]:
     return results
 
 
+def check_control_plane_config() -> List[CheckResult]:
+    results: List[CheckResult] = []
+    source = (os.getenv("DATAHOUND_CONTROL_PLANE_SOURCE") or "auto").strip().lower()
+    if source not in {"auto", "db", "json"}:
+        results.append(
+            CheckResult(
+                "Control-plane source",
+                False,
+                "DATAHOUND_CONTROL_PLANE_SOURCE must be one of: auto, db, json.",
+            )
+        )
+        return results
+
+    storage_url = os.getenv("DATAHOUND_STORAGE_URL") or os.getenv("DATABASE_URL")
+    if source == "db" and not storage_url:
+        results.append(
+            CheckResult(
+                "Control-plane DB configuration",
+                False,
+                "DATAHOUND_CONTROL_PLANE_SOURCE=db requires DATAHOUND_STORAGE_URL (or DATABASE_URL).",
+            )
+        )
+    elif source == "json" and storage_url:
+        results.append(
+            CheckResult(
+                "Control-plane DB configuration",
+                True,
+                "Control-plane source forced to json; DB URL is present but will be ignored.",
+            )
+        )
+    elif storage_url:
+        results.append(
+            CheckResult(
+                "Control-plane DB configuration",
+                True,
+                "DB URL detected; control-plane can run in db mode.",
+            )
+        )
+    else:
+        results.append(
+            CheckResult(
+                "Control-plane DB configuration",
+                True,
+                "No DB URL detected; control-plane will use JSON fallback.",
+            )
+        )
+
+    return results
+
+
 def check_connectivity() -> List[CheckResult]:
     results: List[CheckResult] = []
 
@@ -290,6 +340,7 @@ def run_preflight() -> int:
     checks = []
     checks.extend(check_required_env())
     checks.extend(check_gmail_files())
+    checks.extend(check_control_plane_config())
     checks.extend(check_connectivity())
 
     print("DataHound Pro preflight checks\n")

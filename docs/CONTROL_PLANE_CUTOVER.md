@@ -10,6 +10,11 @@ Make DB the primary control-plane source when available, while keeping JSONL as 
 - `db`: force DB and fail fast when DAL is unavailable
 - `json`: force JSON/read-model mode
 
+Recommended production default:
+- set `DATAHOUND_CONTROL_PLANE_SOURCE=db`
+- set `DATAHOUND_STORAGE_URL` explicitly
+- run preflight before startup to verify control-plane mode/URL consistency
+
 ## Current rollout
 - Source selector helper added: `datahound/storage/control_plane.py`
 - Reconciliation tool now reports selected source:
