@@ -28,6 +28,13 @@ DATAHOUND_STORAGE_URL=postgresql+psycopg://... \
 python -m datahound.devops.control_plane_drift_check --max-missing 0
 ```
 
+Cron wrapper module:
+
+```bash
+DATAHOUND_STORAGE_URL=postgresql+psycopg://... \
+python -m datahound.devops.run_control_plane_drift_check
+```
+
 Exit codes:
 - `0`: drift within threshold
 - `1`: drift above threshold

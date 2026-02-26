@@ -331,6 +331,7 @@ def load_pipeline_runs(company: str, limit: int = 2000) -> pd.DataFrame:
     except Exception:
         pass
 
+    # JSON fallback (export/audit compatibility path; DB is primary when available).
     from central_logging.config import pipeline_dir
     path = pipeline_dir(company) / "pipeline_runs.jsonl"
     rows = _read_jsonl(path, limit)
@@ -389,7 +390,7 @@ def load_review_notify_activity(limit: int = 2000) -> pd.DataFrame:
     except Exception:
         pass
 
-    # JSON fallback from cron log.
+    # JSON fallback from cron log (export/read-model compatibility only).
     from central_logging.config import cron_monitor_dir
     path = cron_monitor_dir() / "swarm_auto_merge.jsonl"
     rows = _read_jsonl(path, limit)
