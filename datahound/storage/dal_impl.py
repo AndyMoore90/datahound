@@ -127,7 +127,7 @@ class SQLStorageDAL(StorageDAL):
         return self._review_repo().upsert_review_gate(record)
 
     def mark_review_ready(self, task_id: str, *, ready: bool) -> None:
-        self._review_repo().mark_review_ready(task_id, ready=ready)
+        self._review_repo().mark_ready(task_id, ready=ready)
 
     def record_notification(self, record: NotificationRecord) -> NotificationRecord:
         return self._notification_repo().record_notification(record)
