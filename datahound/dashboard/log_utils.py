@@ -257,6 +257,47 @@ def load_custom_extraction_logs(company: str | None = None, limit: int = 5000) -
     return df
 
 
+def load_control_plane_overview(company: str, limit: int = 5000) -> pd.DataFrame:
+    """Aggregate lightweight control-plane summary for dashboard tiles."""
+    try:
+        from datahound.storage.control_plane import get_control_plane_source
+        from datahound.storage.bootstrap import get_storage_dal_from_env
+        from datahound.storage.db.repos.review_repo import ReviewGateFilter
+        from datahound.storage.db.repos.notification_repo import NotificationFilter
+
+        if get_control_plane_source() == "db":
+            dal = get_storage_dal_from_env()
+            if dal is not None:
+                runs = list(dal.dependencies.run_repo.list_runs()) if dal.dependencies.run_repo else []
+                runs = [r for r in runs if r.company == company]
+                sched = list(dal.dependencies.scheduler_repo.list_runs(limit=limit)) if dal.dependencies.scheduler_repo else []
+                reviews = list(dal.dependencies.review_repo.list_review_gates(ReviewGateFilter())) if dal.dependencies.review_repo else []
+                notes = list(dal.dependencies.notification_repo.list_notifications(NotificationFilter())) if dal.dependencies.notification_repo else []
+
+                now = datetime.utcnow()
+                payload = {
+                    "ts": now,
+                    "company": company,
+                    "pipeline_runs_total": len(runs),
+                    "pipeline_runs_failed": sum(1 for r in runs if r.status == "failed"),
+                    "scheduler_runs_total": len(sched),
+                    "scheduler_runs_failed": sum(1 for r in sched if r.success is False),
+                    "review_ready": sum(1 for r in reviews if r.ready),
+                    "review_blocked": sum(1 for r in reviews if r.ready is False),
+                    "notifications_sent": sum(1 for n in notes if n.status == "sent"),
+                    "notifications_failed": sum(1 for n in notes if n.status == "failed"),
+                    "stage": "control_plane_overview",
+                }
+                return pd.DataFrame([payload])
+    except Exception:
+        pass
+
+    return pd.DataFrame(columns=[
+        "ts", "company", "pipeline_runs_total", "pipeline_runs_failed", "scheduler_runs_total",
+        "scheduler_runs_failed", "review_ready", "review_blocked", "notifications_sent", "notifications_failed", "stage"
+    ])
+
+
 def load_scheduler_history(limit: int = 5000) -> pd.DataFrame:
     # DB-first control-plane read when enabled.
     try:
@@ -320,6 +361,7 @@ def load_dashboard_data(company: str, limit: int = 5000) -> Dict[str, pd.DataFra
     data["recent_events"] = load_recent_event_changes(company)
     data["custom_extraction"] = load_custom_extraction_logs(company, limit)
     data["scheduler"] = load_scheduler_history(limit)
+    data["control_plane_overview"] = load_control_plane_overview(company, limit)
 
     # Add change logs per entity
     for name in [
