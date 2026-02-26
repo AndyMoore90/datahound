@@ -173,3 +173,9 @@ Install with:
 ```bash
 pip install -r requirements.txt
 ```
+
+## Autonomy Canary
+
+Timestamp: 2026-02-26T03:10:13Z
+
+This is a lightweight documentation canary entry to validate the auto-merge workflow.
