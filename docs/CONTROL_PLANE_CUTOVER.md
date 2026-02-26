@@ -25,6 +25,7 @@ Recommended production default:
 2. Mark JSON logs as exports only in runbooks
 3. Add scheduled reconciliation checks for drift during transition
 4. Enforce idempotency for side-effect logs (review/notification writes) to prevent duplicate control-plane records
+5. Complete and sign off `docs/PHASE5_EXIT_CHECKLIST.md`
 
 ## Readiness snapshot
 Before cutover/rollout, run:
