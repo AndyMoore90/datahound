@@ -41,12 +41,17 @@ try:
 except ImportError:
     render_upsert = None
 
+PROFILES_IMPORT_ERROR: Optional[BaseException] = None
 try:
     from datahound.profiles.enhanced_core_data import EnhancedCustomerCoreDataBuilder
     from datahound.profiles.types import ProfileBuildConfig, ProfileBuildMode
     PROFILES_AVAILABLE = True
-except ImportError:
+except ImportError as exc:
+    EnhancedCustomerCoreDataBuilder = None
+    ProfileBuildConfig = None
+    ProfileBuildMode = None
     PROFILES_AVAILABLE = False
+    PROFILES_IMPORT_ERROR = exc
 
 from datetime import time as datetime_time
 

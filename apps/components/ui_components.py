@@ -4,13 +4,21 @@ Reusable, consistent UI components for the entire application
 """
 
 import streamlit as st
-import plotly.express as px
-import plotly.graph_objects as go
 from typing import Dict, List, Optional, Any, Union
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
 from html import escape
+
+# Import plotly with graceful fallback
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    px = None
+    go = None
 
 
 def load_custom_css():
@@ -377,6 +385,12 @@ def dh_create_metric_chart(data: Dict, chart_type: str = "bar", title: str = "")
         chart_type: Type of chart ("bar", "pie", "line", "area")
         title: Chart title
     """
+    if not PLOTLY_AVAILABLE or not px:
+        # Fallback: return a simple dataframe instead of a chart
+        df = pd.DataFrame({'labels': data.get('labels', []), 'values': data.get('values', [])})
+        st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
+        return df
+    
     theme = dh_professional_chart_theme()
     
     if chart_type == "bar":
