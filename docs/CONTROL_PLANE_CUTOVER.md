@@ -24,6 +24,7 @@ Recommended production default:
 1. Update runtime readers to use selector helper (DB-first, JSON fallback)
 2. Mark JSON logs as exports only in runbooks
 3. Add scheduled reconciliation checks for drift during transition
+4. Enforce idempotency for side-effect logs (review/notification writes) to prevent duplicate control-plane records
 
 ## Drift check command
 Use this in cron/CI after DB is enabled:
