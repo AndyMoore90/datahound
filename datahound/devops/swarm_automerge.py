@@ -21,6 +21,7 @@ import requests
 from central_logging import writer as log_writer
 from datahound.storage.bootstrap import get_storage_dal_from_env
 from datahound.storage.db.models import NotificationRecord, ReviewGateRecord
+from datahound.storage.db.repos.notification_repo import NotificationFilter
 
 LOG = logging.getLogger("swarm-automerge")
 API_BASE = "https://api.github.com"
@@ -250,12 +251,28 @@ class ControlPlaneSync:
         if self._dal is None:
             return
         try:
+            task_id = f"pr:{pr.get('number')}"
+            msg_type = "ready" if event == "auto-merged" else "info"
+
+            # Idempotency guard: avoid duplicate notification rows for same task/event/status.
+            repo = self._dal.dependencies.notification_repo
+            if repo is not None:
+                existing = list(repo.list_notifications(NotificationFilter(task_id=task_id)))
+                for row in existing:
+                    payload = row.payload_json or {}
+                    if (
+                        row.message_type == msg_type
+                        and row.status == ("sent" if sent else "failed")
+                        and payload.get("event") == event
+                    ):
+                        return
+
             record = NotificationRecord(
                 id=None,
-                task_id=f"pr:{pr.get('number')}",
+                task_id=task_id,
                 channel="telegram",
                 target=os.environ.get("TELEGRAM_CHAT_ID", "unknown"),
-                message_type="ready" if event == "auto-merged" else "info",
+                message_type=msg_type,
                 payload_json={
                     "event": event,
                     "message": message,
