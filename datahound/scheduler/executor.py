@@ -15,6 +15,7 @@ from .tasks import ScheduledTask, TaskType
 
 class TaskExecutor:
     """Executes scheduled tasks based on their type and configuration"""
+    # Canary: no-op comment to touch critical scheduler code path.
     
     def __init__(self, base_dir: Path):
         """Initialize the task executor
