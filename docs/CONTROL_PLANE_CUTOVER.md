@@ -19,3 +19,16 @@ Make DB the primary control-plane source when available, while keeping JSONL as 
 1. Update runtime readers to use selector helper (DB-first, JSON fallback)
 2. Mark JSON logs as exports only in runbooks
 3. Add scheduled reconciliation checks for drift during transition
+
+## Drift check command
+Use this in cron/CI after DB is enabled:
+
+```bash
+DATAHOUND_STORAGE_URL=postgresql+psycopg://... \
+python -m datahound.devops.control_plane_drift_check --max-missing 0
+```
+
+Exit codes:
+- `0`: drift within threshold
+- `1`: drift above threshold
+- `2`: DAL/repo configuration issue
