@@ -1,0 +1,58 @@
+{
+  "allow_branch_patterns": [
+    "streamlit/*",
+    "ui/*",
+    "docs/*",
+    "doc/*",
+    "chore/*",
+    "fix/ui-*",
+    "fix/docs-*",
+    "feat/ui-*",
+    "feat/streamlit-*",
+    "hotfix/docs-*"
+  ],
+  "allow_labels": [
+    "automerge",
+    "safe-to-merge"
+  ],
+  "critical_keywords": [
+    "critical",
+    "security",
+    "secrets",
+    "credential",
+    "db",
+    "database",
+    "schema",
+    "migration",
+    "migrate",
+    "scheduler",
+    "infra",
+    "prod",
+    "breaking"
+  ],
+  "critical_labels": [
+    "do-not-automerge",
+    "manual-merge",
+    "security",
+    "db"
+  ],
+  "base_branches": [
+    "main"
+  ],
+  "required_checks": [
+    "ci",
+    "codex-review",
+    "claude-review"
+  ],
+  "merge_method": "squash",
+  "max_pr_age_hours": 96,
+  "notify": {
+    "telegram": {
+      "enabled": true,
+      "events": [
+        "auto-merged",
+        "skipped-critical"
+      ]
+    }
+  }
+}
