@@ -8,9 +8,17 @@ from pathlib import Path as _P
 from typing import Any, Dict, List, Optional
 
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
+
+# Import plotly with graceful fallback
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    px = None
+    go = None
 
 ROOT = _P(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -154,6 +162,10 @@ def _stage_health_card(stage: str, df: pd.DataFrame) -> Dict[str, str]:
 def _timeline_chart(df: pd.DataFrame, title: str):
     if df.empty:
         return None
+    if not PLOTLY_AVAILABLE or not px:
+        st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
+        return None
+    
     if "duration_seconds" not in df.columns:
         df = df.copy()
         df["duration_seconds"] = 0
@@ -175,6 +187,10 @@ def _timeline_chart(df: pd.DataFrame, title: str):
 
 
 def _pipeline_volume_chart(df: pd.DataFrame):
+    if not PLOTLY_AVAILABLE or not px:
+        st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
+        return None
+    
     if df.empty:
         return None
     if "ts" not in df.columns:
@@ -305,26 +321,29 @@ def _render_transcript_metrics(metrics: Optional[Dict[str, Any]]):
 
     funnel_counts = metrics.get("funnel", {})
     if funnel_counts:
-        funnel_fig = go.Figure(
-            go.Funnel(
-                y=[
-                    "Transcripts",
-                    "Callers",
-                    "Customers",
-                    "Service Requests",
-                    "Not Booked",
-                ],
-                x=[
-                    metrics.get("totals", {}).get("transcripts_processed", 0),
-                    metrics.get("totals", {}).get("unique_callers_processed", 0),
-                    funnel_counts.get("customers", 0),
-                    funnel_counts.get("service_requests", 0),
-                    funnel_counts.get("service_requests", 0) - funnel_counts.get("booked", 0),
-                ],
+        if PLOTLY_AVAILABLE and go:
+            funnel_fig = go.Figure(
+                go.Funnel(
+                    y=[
+                        "Transcripts",
+                        "Callers",
+                        "Customers",
+                        "Service Requests",
+                        "Not Booked",
+                    ],
+                    x=[
+                        metrics.get("totals", {}).get("transcripts_processed", 0),
+                        metrics.get("totals", {}).get("unique_callers_processed", 0),
+                        funnel_counts.get("customers", 0),
+                        funnel_counts.get("service_requests", 0),
+                        funnel_counts.get("service_requests", 0) - funnel_counts.get("booked", 0),
+                    ],
+                )
             )
-        )
-        funnel_fig.update_layout(height=350, title="Conversion Funnel")
-        st.plotly_chart(funnel_fig, width='stretch')
+            funnel_fig.update_layout(height=350, title="Conversion Funnel")
+            st.plotly_chart(funnel_fig, width='stretch')
+        else:
+            st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
 
     timeline_records = metrics.get("timeline", {}).get("daily", [])
     if timeline_records:
@@ -341,8 +360,13 @@ def _render_transcript_metrics(metrics: Optional[Dict[str, Any]]):
         timeline_df["date"] = pd.to_datetime(timeline_df["date"], errors="coerce")
         timeline_df.sort_values("date", inplace=True)
         melted = timeline_df.melt("date", var_name="stage", value_name="count")
-        timeline_fig = px.line(melted, x="date", y="count", color="stage", title="Daily Transcript Outcomes")
-        st.plotly_chart(timeline_fig, width='stretch')
+        
+        if PLOTLY_AVAILABLE and px:
+            timeline_fig = px.line(melted, x="date", y="count", color="stage", title="Daily Transcript Outcomes")
+            st.plotly_chart(timeline_fig, width='stretch')
+        else:
+            st.warning("Plotly not available. Install plotly for interactive charts: `pip install plotly`")
+            st.dataframe(melted, width='stretch')
 
     customer_details = metrics.get("customer_details", [])
     if customer_details:

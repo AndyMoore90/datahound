@@ -11,8 +11,16 @@ from typing import Dict, List, Any, Optional
 
 import streamlit as st
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
+
+# Import plotly with graceful fallback
+try:
+    import plotly.express as px
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except ImportError:
+    PLOTLY_AVAILABLE = False
+    px = None
+    go = None
 
 ROOT = _P(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
