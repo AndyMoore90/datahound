@@ -297,6 +297,122 @@ def load_custom_extraction_logs(company: str | None = None, limit: int = 5000) -
     return df
 
 
+def load_pipeline_runs(company: str, limit: int = 2000) -> pd.DataFrame:
+    # DB-first control-plane read when enabled.
+    try:
+        from datahound.storage.control_plane import get_control_plane_source
+        from datahound.storage.bootstrap import get_storage_dal_from_env
+        from datahound.storage.db.repos.run_repo import PipelineRunFilter
+
+        if get_control_plane_source() == "db":
+            dal = get_storage_dal_from_env()
+            repo = dal.dependencies.run_repo if dal is not None else None
+            if repo is not None:
+                runs = list(repo.list_runs(PipelineRunFilter(company=company)))
+                runs = sorted(runs, key=lambda r: r.started_at, reverse=True)[:limit]
+                rows = [
+                    {
+                        "ts": run.started_at,
+                        "run_id": run.run_id,
+                        "company": run.company,
+                        "pipeline_name": run.pipeline_name,
+                        "stage_name": run.stage,
+                        "status": run.status,
+                        "finished_at": run.finished_at,
+                    }
+                    for run in runs
+                ]
+                if rows:
+                    df = pd.DataFrame(rows)
+                    df = _normalize_timestamps(df, "ts")
+                    df = _normalize_timestamps(df, "finished_at")
+                    df["stage"] = "pipeline_runs"
+                    return df
+    except Exception:
+        pass
+
+    from central_logging.config import pipeline_dir
+    path = pipeline_dir(company) / "pipeline_runs.jsonl"
+    rows = _read_jsonl(path, limit)
+    if not rows:
+        return pd.DataFrame(columns=["run_id", "company", "pipeline_name", "status", "started_at", "finished_at"])
+    df = pd.DataFrame(rows)
+    df = _normalize_timestamps(df, "started_at")
+    df.rename(columns={"started_at": "ts"}, inplace=True)
+    df = _normalize_timestamps(df, "finished_at")
+    df["stage"] = "pipeline_runs"
+    return df
+
+
+def load_review_notify_activity(limit: int = 2000) -> pd.DataFrame:
+    # DB-first control-plane read when enabled.
+    try:
+        from datahound.storage.control_plane import get_control_plane_source
+        from datahound.storage.bootstrap import get_storage_dal_from_env
+        from datahound.storage.db.repos.review_repo import ReviewGateFilter
+        from datahound.storage.db.repos.notification_repo import NotificationFilter
+
+        if get_control_plane_source() == "db":
+            dal = get_storage_dal_from_env()
+            review_repo = dal.dependencies.review_repo if dal is not None else None
+            notif_repo = dal.dependencies.notification_repo if dal is not None else None
+            if review_repo is not None and notif_repo is not None:
+                rows: List[Dict[str, Any]] = []
+                for gate in list(review_repo.list_review_gates(ReviewGateFilter()))[:limit]:
+                    rows.append(
+                        {
+                            "ts": gate.updated_at,
+                            "source": "review_gate",
+                            "task_id": gate.task_id,
+                            "pr_number": gate.pr_number,
+                            "status": "ready" if gate.ready else "blocked",
+                            "mode": gate.mode,
+                        }
+                    )
+                for note in list(notif_repo.list_notifications(NotificationFilter()))[:limit]:
+                    rows.append(
+                        {
+                            "ts": note.sent_at,
+                            "source": "notification",
+                            "task_id": note.task_id,
+                            "status": note.status,
+                            "channel": note.channel,
+                            "target": note.target,
+                            "message_type": note.message_type,
+                        }
+                    )
+                if rows:
+                    df = pd.DataFrame(rows)
+                    df = _normalize_timestamps(df, "ts")
+                    df["stage"] = "review_notify"
+                    return df.sort_values("ts", ascending=False)
+    except Exception:
+        pass
+
+    # JSON fallback from cron log.
+    from central_logging.config import cron_monitor_dir
+    path = cron_monitor_dir() / "swarm_auto_merge.jsonl"
+    rows = _read_jsonl(path, limit)
+    if not rows:
+        return pd.DataFrame(columns=["ts", "source", "task_id", "status"])
+    normalized: List[Dict[str, Any]] = []
+    for row in rows:
+        normalized.append(
+            {
+                "ts": row.get("ts") or row.get("timestamp"),
+                "source": "swarm_auto_merge_log",
+                "task_id": f"pr:{row.get('pr_number')}" if row.get("pr_number") else None,
+                "status": row.get("status"),
+                "pr_number": row.get("pr_number"),
+                "message": row.get("message"),
+            }
+        )
+    df = pd.DataFrame(normalized)
+    df = _normalize_timestamps(df, "ts")
+    df["stage"] = "review_notify"
+    return df
+
+
 def load_control_plane_overview(company: str, limit: int = 5000) -> pd.DataFrame:
     """Aggregate lightweight control-plane summary for dashboard tiles."""
     try:
@@ -400,6 +516,8 @@ def load_dashboard_data(company: str, limit: int = 5000) -> Dict[str, pd.DataFra
     data["historical_scan"] = load_historical_scan_logs(company, limit)
     data["recent_events"] = load_recent_event_changes(company)
     data["custom_extraction"] = load_custom_extraction_logs(company, limit)
+    data["pipeline_runs"] = load_pipeline_runs(company, limit)
+    data["review_notify"] = load_review_notify_activity(limit)
     data["scheduler"] = load_scheduler_history(limit)
     data["control_plane_overview"] = load_control_plane_overview(company, limit)
 
