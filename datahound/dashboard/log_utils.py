@@ -168,6 +168,46 @@ def load_core_data_logs(company: str, limit: int = 2000) -> pd.DataFrame:
 
 
 def load_historical_scan_logs(company: str, limit: int = 5000) -> pd.DataFrame:
+    # DB-first control-plane read when enabled.
+    try:
+        from datahound.storage.control_plane import get_control_plane_source
+        from datahound.storage.bootstrap import get_storage_dal_from_env
+
+        if get_control_plane_source() == "db":
+            dal = get_storage_dal_from_env()
+            repo = dal.dependencies.event_repo if dal is not None else None
+            if repo is not None and hasattr(repo, "_session_factory"):
+                from sqlalchemy import select
+                from datahound.storage.db.models import EventIndexModel
+                from datahound.storage.db.engine import session_scope
+
+                rows: List[Dict[str, Any]] = []
+                with session_scope(repo._session_factory) as session:  # type: ignore[attr-defined]
+                    models = session.execute(
+                        select(EventIndexModel)
+                        .where(EventIndexModel.company == company)
+                        .order_by(EventIndexModel.last_seen_at.desc())
+                        .limit(limit)
+                    ).scalars().all()
+                    for model in models:
+                        rows.append(
+                            {
+                                "ts": model.last_seen_at,
+                                "company": model.company,
+                                "action": model.status,
+                                "event_type": model.event_type,
+                                "entity_id": model.entity_id,
+                                "severity": model.severity,
+                                "stage": "historical_scan",
+                            }
+                        )
+                if rows:
+                    df = pd.DataFrame(rows)
+                    df = _normalize_timestamps(df, "ts")
+                    return df
+    except Exception:
+        pass
+
     from central_logging.config import event_detection_historical_dir
     frames: List[pd.DataFrame] = []
     for event_type in ["canceled_jobs", "unsold_estimates", "lost_customers", "overdue_maintenance"]:
