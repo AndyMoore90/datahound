@@ -13,7 +13,11 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from datahound.env import load_env_fallback
 from datahound.scheduler import DataHoundScheduler
+
+# Ensure local .env is loaded for non-exported shell environments
+load_env_fallback(ROOT)
 
 def signal_handler(signum, frame):
     """Handle shutdown signals"""

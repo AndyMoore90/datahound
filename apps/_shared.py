@@ -10,6 +10,11 @@ def ensure_root_on_path() -> None:
   root = Path(__file__).resolve().parents[1]
   if str(root) not in sys.path:
     sys.path.insert(0, str(root))
+  try:
+    from datahound.env import load_env_fallback
+    load_env_fallback(root)
+  except Exception:
+    pass
 
 
 def list_companies() -> List[str]:
