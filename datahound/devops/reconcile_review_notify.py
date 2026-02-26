@@ -11,6 +11,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from datahound.storage.bootstrap import get_storage_dal_from_env
+from datahound.storage.control_plane import get_control_plane_source
 from datahound.storage.db.repos.notification_repo import NotificationFilter
 from datahound.storage.db.repos.review_repo import ReviewGateFilter
 
@@ -34,16 +35,21 @@ def load_jsonl(path: Path):
 
 
 def main() -> int:
-    dal = get_storage_dal_from_env()
-    if dal is None:
-        print("[FAIL] DATAHOUND_STORAGE_URL not configured; DAL unavailable")
-        return 1
-
+    source = get_control_plane_source()
     log_rows = load_jsonl(LOG_PATH)
     pr_ids = {f"pr:{row.get('pr_number')}" for row in log_rows if row.get("pr_number")}
 
-    review_rows = list(dal.dependencies.review_repo.list_review_gates(ReviewGateFilter())) if dal.dependencies.review_repo else []
-    notif_rows = list(dal.dependencies.notification_repo.list_notifications(NotificationFilter())) if dal.dependencies.notification_repo else []
+    if source == "db":
+        dal = get_storage_dal_from_env()
+        if dal is None:
+            print("[FAIL] Control-plane source=db but DAL unavailable")
+            return 1
+        review_rows = list(dal.dependencies.review_repo.list_review_gates(ReviewGateFilter())) if dal.dependencies.review_repo else []
+        notif_rows = list(dal.dependencies.notification_repo.list_notifications(NotificationFilter())) if dal.dependencies.notification_repo else []
+    else:
+        # JSON fallback/read-model mode
+        review_rows = []
+        notif_rows = []
 
     review_task_ids = {r.task_id for r in review_rows}
     notif_task_ids = {n.task_id for n in notif_rows}
@@ -53,6 +59,7 @@ def main() -> int:
 
     print("reconciliation_summary")
     print(json.dumps({
+        "control_plane_source": source,
         "log_records": len(log_rows),
         "unique_pr_tasks": len(pr_ids),
         "db_review_rows": len(review_rows),

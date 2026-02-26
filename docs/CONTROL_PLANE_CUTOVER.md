@@ -1,0 +1,21 @@
+# Control Plane Cutover (Phase 5)
+
+## Goal
+Make DB the primary control-plane source when available, while keeping JSONL as compatibility/audit exports.
+
+## Toggle
+`DATAHOUND_CONTROL_PLANE_SOURCE=auto|db|json`
+
+- `auto` (default): use DB when DAL is available, otherwise JSON
+- `db`: force DB and fail fast when DAL is unavailable
+- `json`: force JSON/read-model mode
+
+## Current rollout
+- Source selector helper added: `datahound/storage/control_plane.py`
+- Reconciliation tool now reports selected source:
+  - `datahound/devops/reconcile_review_notify.py`
+
+## Next rollout steps
+1. Update runtime readers to use selector helper (DB-first, JSON fallback)
+2. Mark JSON logs as exports only in runbooks
+3. Add scheduled reconciliation checks for drift during transition
