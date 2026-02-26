@@ -93,7 +93,13 @@ class SQLStorageDAL(StorageDAL):
         manifest: RunManifest | None,
         error: Mapping[str, object] | None = None,
     ) -> PipelineRunRecord:
-        return self._run_repo().finish_pipeline_run(run_id, status=status, output_manifest=manifest, error=error)
+        manifest_payload = manifest.as_dict() if manifest else None
+        return self._run_repo().finish_pipeline_run(
+            run_id,
+            status=status,
+            output_manifest=manifest_payload,
+            error=error,
+        )
 
     def register_dataset_version(self, dataset: DatasetVersionRecord) -> DatasetVersionRecord:
         return self._run_repo().register_dataset_version(dataset)

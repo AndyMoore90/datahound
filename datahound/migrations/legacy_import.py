@@ -26,8 +26,9 @@ import pyarrow.parquet as pq
 
 from datahound.download.types import DownloadConfig, load_config
 from datahound.prepare.engine import read_master_columns_any, reorder_to_master
+from datahound.storage.bootstrap import get_storage_dal_from_env
 from datahound.storage.manifest import DatasetManifest, ManifestEntry, RunManifest
-from datahound.storage.db.models import DatasetVersionRecord
+from datahound.storage.db.models import DatasetVersionRecord, PipelineRunRecord
 from central_logging.config import pipeline_dir
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -204,6 +205,7 @@ class LegacyDataImporter:
         self._dataset_versions_path = self._pipeline_log_dir / "dataset_versions.jsonl"
         self._pipeline_runs_path = self._pipeline_log_dir / "pipeline_runs.jsonl"
         self._target_dir = PROJECT_ROOT / "companies" / company / "parquet"
+        self._storage_dal = None if self.dry_run else get_storage_dal_from_env()
 
     # ------------------------------------------------------------------
     # Public API
@@ -219,6 +221,7 @@ class LegacyDataImporter:
         self._load_existing_dataset_versions()
         self._target_dir.mkdir(parents=True, exist_ok=True)
         started = datetime.now(UTC)
+        self._start_pipeline_run(started)
         results: List[DatasetImportResult] = []
         for dataset_type in selected_types:
             spec = self._dataset_specs[dataset_type]
@@ -238,11 +241,76 @@ class LegacyDataImporter:
         )
         self._write_report(report)
         self._record_pipeline_run(report)
+        self._finish_pipeline_run(report)
         return report
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    def _start_pipeline_run(self, started_at: datetime) -> None:
+        if self._storage_dal is None:
+            return
+        run = PipelineRunRecord(
+            id=None,
+            run_id=self.run_id,
+            company=self.company,
+            pipeline_name=self.pipeline_name,
+            stage=self.stage,
+            status="running",
+            input_manifest_json=None,
+            output_manifest_json=None,
+            error_json=None,
+            started_at=started_at,
+            finished_at=None,
+        )
+        self._storage_dal.start_pipeline_run(run)
+
+    def _finish_pipeline_run(self, report: MigrationReport) -> None:
+        if self._storage_dal is None:
+            return
+        outputs: List[DatasetManifest] = []
+        for res in report.results:
+            if res.output_file and res.version_tag and res.checksum and res.row_count is not None:
+                entry = ManifestEntry(
+                    dataset_name=res.dataset_name,
+                    version_tag=res.version_tag,
+                    file_path=res.output_file,
+                    schema_version=res.schema_version,
+                    row_count=res.row_count,
+                    checksum=res.checksum,
+                )
+                outputs.append(
+                    DatasetManifest(
+                        dataset_name=res.dataset_name,
+                        entries=[entry],
+                        produced_by_run_id=self.run_id,
+                        created_at=report.finished_at,
+                    )
+                )
+        status = "success" if report.success() else "failed"
+        manifest = RunManifest(
+            run_id=self.run_id,
+            pipeline_name=self.pipeline_name,
+            company=self.company,
+            stage=self.stage,
+            status=status,
+            started_at=report.started_at,
+            finished_at=report.finished_at,
+            input_datasets=tuple(),
+            output_datasets=tuple(outputs),
+            metadata={
+                "source_path": str(report.source_path),
+                "dry_run": self.dry_run,
+            },
+            error={"messages": report.errors()} if not report.success() else None,
+        )
+        self._storage_dal.finish_pipeline_run(
+            self.run_id,
+            status=status,
+            manifest=manifest,
+            error=manifest.error,
+        )
 
     def _load_company_config(self) -> DownloadConfig:
         if not self.config_path.exists():
@@ -489,6 +557,8 @@ class LegacyDataImporter:
             "created_at": record.created_at.isoformat(),
         }
         self._append_jsonl(self._dataset_versions_path, payload)
+        if self._storage_dal is not None:
+            self._storage_dal.register_dataset_version(record)
         self._known_versions.add((record.dataset_name, version_tag))
 
     def _write_report(self, report: MigrationReport) -> None:

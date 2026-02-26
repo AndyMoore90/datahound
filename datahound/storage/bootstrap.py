@@ -8,6 +8,7 @@ from .dal import DALDependencies, StorageDAL
 from .dal_impl import SQLStorageDAL
 from .db.engine import DatabaseConfig, SQLAlchemyEngineFactory
 from .db.models import StorageBase
+from .db.repos.run_sql_repo import SQLRunRepository
 from .db.repos.scheduler_sql_repo import SQLSchedulerRepository
 
 
@@ -37,6 +38,7 @@ def get_storage_dal_from_env() -> StorageDAL | None:
         session_factory = engine_factory.create_session_factory()
         dependencies = DALDependencies(
             scheduler_repo=SQLSchedulerRepository(session_factory),
+            run_repo=SQLRunRepository(session_factory),
         )
         return SQLStorageDAL(dependencies)
     except Exception as exc:  # pragma: no cover - defensive fallback
