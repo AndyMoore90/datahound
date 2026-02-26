@@ -218,6 +218,36 @@ def load_custom_extraction_logs(company: str | None = None, limit: int = 5000) -
 
 
 def load_scheduler_history(limit: int = 5000) -> pd.DataFrame:
+    # DB-first control-plane read when enabled.
+    try:
+        from datahound.storage.control_plane import get_control_plane_source
+        from datahound.storage.bootstrap import get_storage_dal_from_env
+
+        if get_control_plane_source() == "db":
+            dal = get_storage_dal_from_env()
+            repo = dal.dependencies.scheduler_repo if dal is not None else None
+            if repo is not None:
+                runs = list(repo.list_runs(limit=limit))
+                rows = [
+                    {
+                        "ts": run.started_at,
+                        "task_id": str(run.task_id),
+                        "run_id": run.run_id,
+                        "success": run.success,
+                        "message": run.message,
+                        "duration_ms": run.duration_ms,
+                        "status": "success" if run.success else "failed" if run.success is False else "running",
+                    }
+                    for run in runs
+                ]
+                if rows:
+                    df = pd.DataFrame(rows)
+                    df = _normalize_timestamps(df, "ts")
+                    df["stage"] = "scheduler"
+                    return df
+    except Exception:
+        pass
+
     from central_logging.config import scheduler_dir
     path = scheduler_dir() / "task_history.jsonl"
     if not path.exists():
